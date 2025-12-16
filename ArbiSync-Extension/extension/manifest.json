@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "Arbitrage Assistant",
+  "version": "0.1",
+  "description": "Assistente de arbitragem Gate Spot + MEXC Futuros",
+  "permissions": ["tabs"],
+  "host_permissions": [
+    "https://www.gate.io/*",
+    "https://www.gate.com/*",
+    "https://www.mexc.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.gate.io/*",
+        "https://www.gate.com/*"
+      ],
+      "js": ["content_gate.js"],
+      "run_at": "document_idle"
+    },
+    {
+      "matches": ["https://www.mexc.com/*"],
+      "js": ["content_mexc.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "overlay/panel.html",
+        "overlay/panel.css"
+      ],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

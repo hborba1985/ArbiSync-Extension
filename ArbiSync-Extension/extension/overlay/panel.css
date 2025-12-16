@@ -1,0 +1,59 @@
+#arb-panel {
+  position: fixed;
+  right: 18px;
+  top: 18px;
+  width: 280px;
+  z-index: 2147483647;
+  background: #1f1b3a;
+  color: #fff;
+  border-radius: 14px;
+  padding: 14px;
+  font-family: Arial, sans-serif;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+
+#arb-panel .title {
+  font-weight: 800;
+  font-size: 16px;
+  margin-bottom: 10px;
+}
+
+#arb-panel .row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+}
+
+#arb-panel .row.big {
+  font-size: 14px;
+}
+
+#arb-panel b {
+  font-weight: 800;
+}
+
+#arb-panel .status {
+  margin-top: 10px;
+  font-size: 12px;
+  opacity: 0.85;
+}
+
+#arb-panel button {
+  margin-top: 12px;
+  width: 100%;
+  border: none;
+  padding: 12px;
+  border-radius: 10px;
+  background: #6d5dfc;
+  color: #fff;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+#arb-panel button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

@@ -85,8 +85,8 @@ function startMexcFutures() {
     try {
       const msg = JSON.parse(raw.toString());
 
-      // ticker da MEXC futures: data.bid
-      if (msg.data && typeof msg.data.bid === 'number') {
+      // ticker da MEXC futures: data.bid (pode vir como string)
+      if (msg.data && msg.data.bid != null) {
         const bid = Number(msg.data.bid);
         if (!Number.isNaN(bid)) {
           state.bidMexc = bid;

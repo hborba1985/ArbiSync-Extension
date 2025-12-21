@@ -36,6 +36,10 @@ console.log('🧩 content_gate.js carregado');
         setText('bidMexc', '--');
         setText('spread', '--');
         setText('coreStatus', 'CORE: aguardando...');
+        setText('riskStatus', 'RISCO: --');
+        setText('queueStatus', 'FILA: --');
+
+        setupActions();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -52,6 +56,96 @@ console.log('🧩 content_gate.js carregado');
     const btn = document.getElementById('confirmBtn');
     if (!btn) return;
     btn.disabled = !enabled;
+  }
+
+  function sendCommand(command) {
+    chrome.runtime.sendMessage({ type: 'UI_COMMAND', command });
+  }
+
+  function setupActions() {
+    const confirmBtn = document.getElementById('confirmBtn');
+    const autoBtn = document.getElementById('autoBtn');
+    const assistBtn = document.getElementById('assistBtn');
+    const panicBtn = document.getElementById('panicBtn');
+    const testBtn = document.getElementById('testBtn');
+
+    if (confirmBtn) {
+      confirmBtn.addEventListener('click', () => {
+        if (!confirmBtn.dataset.orderId) return;
+        sendCommand({ action: 'CONFIRM_ORDER', id: confirmBtn.dataset.orderId });
+      });
+    }
+
+    if (autoBtn) {
+      autoBtn.addEventListener('click', () => {
+        sendCommand({ action: 'SET_MODE', autoMode: true, assistedMode: false });
+      });
+    }
+
+    if (assistBtn) {
+      assistBtn.addEventListener('click', () => {
+        sendCommand({ action: 'SET_MODE', autoMode: false, assistedMode: true });
+      });
+    }
+
+    if (panicBtn) {
+      panicBtn.addEventListener('click', () => {
+        sendCommand({ action: 'PANIC' });
+      });
+    }
+
+    if (testBtn) {
+      testBtn.addEventListener('click', () => {
+        const askGate = Number(testBtn.dataset.askGate || 0);
+        const bidMexc = Number(testBtn.dataset.bidMexc || 0);
+        const assetGate = testBtn.dataset.pairGate || 'TEST_GATE';
+        const assetMexc = testBtn.dataset.pairMexc || 'TEST_MEXC';
+
+        sendCommand({
+          action: 'TEST_BURST',
+          orders: [
+            {
+              asset: assetGate,
+              exchange: 'GATE',
+              side: 'BUY',
+              volume: 25,
+              price: askGate || 0,
+              priority: 20
+            },
+            {
+              asset: assetMexc,
+              exchange: 'MEXC',
+              side: 'SELL',
+              volume: 25,
+              price: bidMexc || 0,
+              priority: 20
+            }
+          ]
+        });
+      });
+    }
+  }
+
+  function renderQueue(queue = [], history = []) {
+    const list = document.getElementById('queueList');
+    if (!list) return;
+
+    const combined = [...queue, ...history].slice(0, 6);
+    if (!combined.length) {
+      list.textContent = 'Nenhuma ordem na fila.';
+      return;
+    }
+
+    list.innerHTML = '';
+    combined.forEach((order) => {
+      const row = document.createElement('div');
+      row.className = 'queue-item';
+      row.innerHTML = `
+        <span>${order.asset || '--'} • ${order.side || '--'} • ${order.volume}</span>
+        <span class="badge">${order.status}</span>
+      `;
+      list.appendChild(row);
+    });
   }
 
   if (document.readyState === 'loading') {
@@ -75,8 +169,41 @@ console.log('🧩 content_gate.js carregado');
       if (typeof data.bidMexc === 'number') setText('bidMexc', data.bidMexc.toFixed(11));
       if (typeof data.spread === 'number') setText('spread', data.spread.toFixed(3) + '%');
 
-      // Habilita o botão quando sinalizar oportunidade
-      setButtonEnabled(!!data.signal);
+      const pendingSuggested = (data.queue || []).find(
+        (order) => order.suggested && !order.confirmed
+      );
+      const confirmBtn = document.getElementById('confirmBtn');
+      if (confirmBtn) {
+        confirmBtn.dataset.orderId = pendingSuggested?.id || '';
+      }
+
+      setButtonEnabled(!!pendingSuggested);
+
+      const riskStatus = document.getElementById('riskStatus');
+      if (riskStatus) {
+        const panicFlag = data.panic ? 'PANIC' : 'OK';
+        const cooldownFlag =
+          data.cooldownUntil && Date.now() < data.cooldownUntil
+            ? 'COOLDOWN'
+            : 'ON';
+        riskStatus.textContent = `RISCO: ${panicFlag} | ${cooldownFlag}`;
+      }
+
+      const queueStatus = document.getElementById('queueStatus');
+      if (queueStatus) {
+        const queueCount = Array.isArray(data.queue) ? data.queue.length : 0;
+        queueStatus.textContent = `FILA: ${queueCount} | PERDAS: ${data.losses || 0}`;
+      }
+
+      const testBtn = document.getElementById('testBtn');
+      if (testBtn) {
+        testBtn.dataset.askGate = data.askGate || '';
+        testBtn.dataset.bidMexc = data.bidMexc || '';
+        testBtn.dataset.pairGate = data.pairGate || '';
+        testBtn.dataset.pairMexc = data.pairMexc || '';
+      }
+
+      renderQueue(data.queue || [], data.history || []);
     }
   });
 })();

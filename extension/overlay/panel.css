@@ -41,6 +41,34 @@
   opacity: 0.85;
 }
 
+#arb-panel .queue {
+  margin-top: 10px;
+  font-size: 11px;
+  background: rgba(255,255,255,0.05);
+  padding: 8px;
+  border-radius: 10px;
+  max-height: 160px;
+  overflow: auto;
+}
+
+#arb-panel .queue-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px dashed rgba(255,255,255,0.08);
+}
+
+#arb-panel .queue-item:last-child {
+  border-bottom: none;
+}
+
+#arb-panel .badge {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  background: rgba(255,255,255,0.12);
+}
+
 #arb-panel button {
   margin-top: 12px;
   width: 100%;
@@ -51,6 +79,14 @@
   color: #fff;
   font-weight: 800;
   cursor: pointer;
+}
+
+#arb-panel button.ghost {
+  background: rgba(255,255,255,0.12);
+}
+
+#arb-panel button.danger {
+  background: #ff5d5d;
 }
 
 #arb-panel button:disabled {

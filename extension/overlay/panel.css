@@ -15,6 +15,7 @@
   overflow: auto;
   min-width: 260px;
   min-height: 240px;
+  box-sizing: border-box;
 }
 
 #arb-panel.signal {
@@ -26,6 +27,7 @@
   font-size: 16px;
   margin-bottom: 10px;
   cursor: move;
+  user-select: none;
 }
 
 #arb-panel .row {
@@ -111,4 +113,15 @@
 #arb-panel button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+#arb-panel .resizer {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 14px;
+  height: 14px;
+  border-right: 2px solid rgba(255,255,255,0.4);
+  border-bottom: 2px solid rgba(255,255,255,0.4);
+  cursor: nwse-resize;
 }

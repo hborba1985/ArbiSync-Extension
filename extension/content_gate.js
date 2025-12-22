@@ -41,6 +41,7 @@ console.log('🧩 content_gate.js carregado');
 
         setupActions();
         setupDrag();
+        setupResize();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -118,6 +119,9 @@ console.log('🧩 content_gate.js carregado');
       offsetY = event.clientY - rect.top;
       panel.style.right = 'auto';
       panel.style.bottom = 'auto';
+      panel.style.cursor = 'grabbing';
+      document.body.style.userSelect = 'none';
+      event.preventDefault();
     });
 
     document.addEventListener('mousemove', (event) => {
@@ -130,6 +134,46 @@ console.log('🧩 content_gate.js carregado');
 
     document.addEventListener('mouseup', () => {
       dragging = false;
+      panel.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  }
+
+  function setupResize() {
+    const panel = document.getElementById('arb-panel');
+    const resizer = panel?.querySelector('.resizer');
+    if (!panel || !resizer) return;
+
+    let resizing = false;
+    let startX = 0;
+    let startY = 0;
+    let startWidth = 0;
+    let startHeight = 0;
+
+    resizer.addEventListener('mousedown', (event) => {
+      resizing = true;
+      const rect = panel.getBoundingClientRect();
+      startX = event.clientX;
+      startY = event.clientY;
+      startWidth = rect.width;
+      startHeight = rect.height;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      document.body.style.userSelect = 'none';
+      event.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (event) => {
+      if (!resizing) return;
+      const nextWidth = Math.max(260, startWidth + (event.clientX - startX));
+      const nextHeight = Math.max(240, startHeight + (event.clientY - startY));
+      panel.style.width = `${nextWidth}px`;
+      panel.style.height = `${nextHeight}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      resizing = false;
+      document.body.style.userSelect = '';
     });
   }
 
@@ -160,6 +204,13 @@ console.log('🧩 content_gate.js carregado');
           ? data.alert.reasons.join(', ')
           : 'OK';
         riskStatus.textContent = `FILTROS: ${reasons}`;
+      }
+
+      const testStatus = document.getElementById('testStatus');
+      if (testStatus && data.lastTestExecution?.at) {
+        const time = new Date(data.lastTestExecution.at).toLocaleTimeString();
+        const volume = data.lastTestExecution.volume ?? '--';
+        testStatus.textContent = `TESTE: ${volume} @ ${time}`;
       }
 
       const conversionStatus = document.getElementById('conversionStatus');

@@ -2,33 +2,30 @@
 import { startFeeds } from './priceFeeds.js';
 import { checkArbitrage } from './arbitrageEngine.js';
 import { startBridge, broadcastState } from './bridge.js';
-import { enqueueOrder, processQueue } from './executionQueue.js';
-import cfg from './config.js';
 import state from './state.js';
 
 console.log('🚀 Arbitrage core iniciado');
 
 state.mode = 'ARMED';
-state.autoMode = false;
-state.assistedMode = true;
 
 startFeeds();
 startBridge(8787);
 
-function buildOrderPayload() {
-  if (typeof state.askGate !== 'number' || typeof state.bidMexc !== 'number') {
-    return null;
-  }
-
-  return {
-    asset: cfg.PAIR_GATE,
-    exchange: 'GATE',
-    side: 'BUY',
-    volume: cfg.ORDER_VOLUME,
-    price: state.askGate,
-    spreadPct: state.spread
-  };
-}
+state.settings = {
+  ...state.settings,
+  spreadMin: cfg.SPREAD_MIN,
+  minVolume: cfg.MIN_VOLUME,
+  slippageMax: cfg.SLIPPAGE_MAX,
+  maxAlertsPerMinute: cfg.MAX_ALERTS_PER_MINUTE,
+  futuresContractSize: cfg.FUTURES_CONTRACT_SIZE,
+  allowPartialExecution: cfg.ALLOW_PARTIAL_EXECUTION,
+  exposurePerAsset: cfg.EXPOSURE_LIMITS.PER_ASSET,
+  exposurePerExchange: cfg.EXPOSURE_LIMITS.PER_EXCHANGE,
+  exposureGlobal: cfg.EXPOSURE_LIMITS.GLOBAL,
+  spotVolume: cfg.ORDER_VOLUME,
+  testVolume: cfg.MIN_VOLUME,
+  slippageEstimate: 0
+};
 
 setInterval(() => {
   checkArbitrage();
@@ -36,37 +33,5 @@ setInterval(() => {
 
   if (state.signal && typeof state.spread === 'number') {
     console.log(`⚡ Arbitragem detectada: ${state.spread.toFixed(3)}%`);
-
-    const now = Date.now();
-    const canEnqueue =
-      !state.lastEnqueueAt || now - state.lastEnqueueAt > cfg.COOLDOWN_MS;
-
-    if (canEnqueue) {
-      if (state.autoMode) {
-        const payload = buildOrderPayload();
-        if (payload) {
-          enqueueOrder({
-            ...payload,
-            priority: 10,
-            suggested: false,
-            confirmed: true
-          });
-          state.lastEnqueueAt = now;
-        }
-      } else if (state.assistedMode) {
-        const payload = buildOrderPayload();
-        if (payload) {
-          enqueueOrder({
-            ...payload,
-            priority: 5,
-            suggested: true,
-            confirmed: false
-          });
-          state.lastEnqueueAt = now;
-        }
-      }
-    }
   }
-
-  processQueue();
 }, 100);

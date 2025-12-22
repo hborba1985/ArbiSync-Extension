@@ -2,7 +2,7 @@
   position: fixed;
   right: 18px;
   top: 18px;
-  width: 280px;
+  width: 320px;
   z-index: 2147483647;
   background: #1f1b3a;
   color: #fff;
@@ -10,6 +10,10 @@
   padding: 14px;
   font-family: Arial, sans-serif;
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+
+#arb-panel.signal {
+  box-shadow: 0 0 0 2px rgba(109,93,252,0.6), 0 10px 30px rgba(0,0,0,0.35);
 }
 
 #arb-panel .title {
@@ -41,32 +45,41 @@
   opacity: 0.85;
 }
 
-#arb-panel .queue {
+#arb-panel .section-title {
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+
+#arb-panel .field {
   margin-top: 10px;
-  font-size: 11px;
-  background: rgba(255,255,255,0.05);
-  padding: 8px;
-  border-radius: 10px;
-  max-height: 160px;
-  overflow: auto;
-}
-
-#arb-panel .queue-item {
   display: flex;
-  justify-content: space-between;
-  padding: 4px 0;
-  border-bottom: 1px dashed rgba(255,255,255,0.08);
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
 }
 
-#arb-panel .queue-item:last-child {
-  border-bottom: none;
+#arb-panel .field input[type="number"] {
+  width: 100%;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.08);
+  color: #fff;
 }
 
-#arb-panel .badge {
-  padding: 2px 6px;
-  border-radius: 999px;
-  font-size: 10px;
-  background: rgba(255,255,255,0.12);
+#arb-panel .field.checkbox {
+  flex-direction: row;
+  align-items: center;
+}
+
+#arb-panel .field.checkbox label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 #arb-panel button {

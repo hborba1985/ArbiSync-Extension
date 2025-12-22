@@ -36,8 +36,8 @@ console.log('🧩 content_mexc.js carregado');
         setText('bidMexc', '--');
         setText('spread', '--');
         setText('coreStatus', 'CORE: aguardando...');
-        setText('riskStatus', 'RISCO: --');
-        setText('queueStatus', 'FILA: --');
+        setText('riskStatus', 'FILTROS: --');
+        setText('conversionStatus', 'FUTUROS: -- contratos');
 
         setupActions();
       })
@@ -52,100 +52,53 @@ console.log('🧩 content_mexc.js carregado');
     el.textContent = value;
   }
 
-  function setButtonEnabled(enabled) {
-    const btn = document.getElementById('confirmBtn');
-    if (!btn) return;
-    btn.disabled = !enabled;
-  }
-
   function sendCommand(command) {
     chrome.runtime.sendMessage({ type: 'UI_COMMAND', command });
   }
 
   function setupActions() {
-    const confirmBtn = document.getElementById('confirmBtn');
-    const autoBtn = document.getElementById('autoBtn');
-    const assistBtn = document.getElementById('assistBtn');
-    const panicBtn = document.getElementById('panicBtn');
+    const saveBtn = document.getElementById('saveSettingsBtn');
     const testBtn = document.getElementById('testBtn');
 
-    if (confirmBtn) {
-      confirmBtn.addEventListener('click', () => {
-        if (!confirmBtn.dataset.orderId) return;
-        sendCommand({ action: 'CONFIRM_ORDER', id: confirmBtn.dataset.orderId });
-      });
-    }
+    const readNumber = (id) => {
+      const input = document.getElementById(id);
+      if (!input) return null;
+      const value = Number(input.value);
+      return Number.isFinite(value) ? value : null;
+    };
 
-    if (autoBtn) {
-      autoBtn.addEventListener('click', () => {
-        sendCommand({ action: 'SET_MODE', autoMode: true, assistedMode: false });
-      });
-    }
+    const readSettings = () => ({
+      spotVolume: readNumber('spotVolume'),
+      futuresContractSize: readNumber('futuresContractSize'),
+      spreadMin: readNumber('spreadMin'),
+      minVolume: readNumber('minVolume'),
+      slippageMax: readNumber('slippageMax'),
+      slippageEstimate: readNumber('slippageEstimate'),
+      maxAlertsPerMinute: readNumber('maxAlertsPerMinute'),
+      exposurePerAsset: readNumber('exposurePerAsset'),
+      exposurePerExchange: readNumber('exposurePerExchange'),
+      exposureGlobal: readNumber('exposureGlobal'),
+      allowPartialExecution:
+        document.getElementById('allowPartialExecution')?.checked ?? false,
+      testVolume: readNumber('testVolume')
+    });
 
-    if (assistBtn) {
-      assistBtn.addEventListener('click', () => {
-        sendCommand({ action: 'SET_MODE', autoMode: false, assistedMode: true });
-      });
-    }
-
-    if (panicBtn) {
-      panicBtn.addEventListener('click', () => {
-        sendCommand({ action: 'PANIC' });
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        sendCommand({ action: 'UPDATE_SETTINGS', settings: readSettings() });
       });
     }
 
     if (testBtn) {
       testBtn.addEventListener('click', () => {
-        const askGate = Number(testBtn.dataset.askGate || 0);
-        const bidMexc = Number(testBtn.dataset.bidMexc || 0);
-        const assetGate = testBtn.dataset.pairGate || 'TEST_GATE';
-        const assetMexc = testBtn.dataset.pairMexc || 'TEST_MEXC';
-
+        const settings = readSettings();
+        sendCommand({ action: 'UPDATE_SETTINGS', settings });
         sendCommand({
-          action: 'TEST_BURST',
-          orders: [
-            {
-              asset: assetGate,
-              exchange: 'GATE',
-              side: 'BUY',
-              volume: 25,
-              price: askGate || 0,
-              priority: 20
-            },
-            {
-              asset: assetMexc,
-              exchange: 'MEXC',
-              side: 'SELL',
-              volume: 25,
-              price: bidMexc || 0,
-              priority: 20
-            }
-          ]
+          action: 'TEST_EXECUTION',
+          volume: settings.testVolume
         });
       });
     }
-  }
-
-  function renderQueue(queue = [], history = []) {
-    const list = document.getElementById('queueList');
-    if (!list) return;
-
-    const combined = [...queue, ...history].slice(0, 6);
-    if (!combined.length) {
-      list.textContent = 'Nenhuma ordem na fila.';
-      return;
-    }
-
-    list.innerHTML = '';
-    combined.forEach((order) => {
-      const row = document.createElement('div');
-      row.className = 'queue-item';
-      row.innerHTML = `
-        <span>${order.asset || '--'} • ${order.side || '--'} • ${order.volume}</span>
-        <span class="badge">${order.status}</span>
-      `;
-      list.appendChild(row);
-    });
   }
 
   if (document.readyState === 'loading') {
@@ -169,41 +122,49 @@ console.log('🧩 content_mexc.js carregado');
       if (typeof data.bidMexc === 'number') setText('bidMexc', data.bidMexc.toFixed(11));
       if (typeof data.spread === 'number') setText('spread', data.spread.toFixed(3) + '%');
 
-      const pendingSuggested = (data.queue || []).find(
-        (order) => order.suggested && !order.confirmed
-      );
-      const confirmBtn = document.getElementById('confirmBtn');
-      if (confirmBtn) {
-        confirmBtn.dataset.orderId = pendingSuggested?.id || '';
-      }
-
-      setButtonEnabled(!!pendingSuggested);
-
       const riskStatus = document.getElementById('riskStatus');
       if (riskStatus) {
-        const panicFlag = data.panic ? 'PANIC' : 'OK';
-        const cooldownFlag =
-          data.cooldownUntil && Date.now() < data.cooldownUntil
-            ? 'COOLDOWN'
-            : 'ON';
-        riskStatus.textContent = `RISCO: ${panicFlag} | ${cooldownFlag}`;
+        const reasons = data.alert?.reasons?.length
+          ? data.alert.reasons.join(', ')
+          : 'OK';
+        riskStatus.textContent = `FILTROS: ${reasons}`;
       }
 
-      const queueStatus = document.getElementById('queueStatus');
-      if (queueStatus) {
-        const queueCount = Array.isArray(data.queue) ? data.queue.length : 0;
-        queueStatus.textContent = `FILA: ${queueCount} | PERDAS: ${data.losses || 0}`;
+      const conversionStatus = document.getElementById('conversionStatus');
+      if (conversionStatus) {
+        const contracts = data.alert?.futuresContracts ?? 0;
+        conversionStatus.textContent = `FUTUROS: ${contracts.toFixed(4)} contratos`;
       }
 
-      const testBtn = document.getElementById('testBtn');
-      if (testBtn) {
-        testBtn.dataset.askGate = data.askGate || '';
-        testBtn.dataset.bidMexc = data.bidMexc || '';
-        testBtn.dataset.pairGate = data.pairGate || '';
-        testBtn.dataset.pairMexc = data.pairMexc || '';
+      const panel = document.getElementById('arb-panel');
+      if (panel) {
+        panel.classList.toggle('signal', !!data.signal);
       }
 
-      renderQueue(data.queue || [], data.history || []);
+      const settings = data.settings || {};
+      const updateInput = (id, value) => {
+        const input = document.getElementById(id);
+        if (!input || document.activeElement === input) return;
+        if (value === null || value === undefined) return;
+        input.value = value;
+      };
+
+      updateInput('spotVolume', settings.spotVolume);
+      updateInput('futuresContractSize', settings.futuresContractSize);
+      updateInput('spreadMin', settings.spreadMin);
+      updateInput('minVolume', settings.minVolume);
+      updateInput('slippageMax', settings.slippageMax);
+      updateInput('slippageEstimate', settings.slippageEstimate);
+      updateInput('maxAlertsPerMinute', settings.maxAlertsPerMinute);
+      updateInput('exposurePerAsset', settings.exposurePerAsset);
+      updateInput('exposurePerExchange', settings.exposurePerExchange);
+      updateInput('exposureGlobal', settings.exposureGlobal);
+      updateInput('testVolume', settings.testVolume);
+
+      const allowPartial = document.getElementById('allowPartialExecution');
+      if (allowPartial && document.activeElement !== allowPartial) {
+        allowPartial.checked = !!settings.allowPartialExecution;
+      }
     }
   });
 })();

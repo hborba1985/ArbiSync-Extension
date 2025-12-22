@@ -17,14 +17,64 @@
   </div>
 
   <div class="status" id="coreStatus">CORE: aguardando...</div>
-  <div class="status" id="riskStatus">RISCO: --</div>
-  <div class="status" id="queueStatus">FILA: --</div>
+  <div class="status" id="riskStatus">FILTROS: --</div>
 
-  <div class="queue" id="queueList"></div>
+  <div class="section-title">Configurações</div>
+  <div class="field">
+    <label for="spotVolume">Volume SPOT</label>
+    <input id="spotVolume" type="number" step="0.0001" placeholder="Ex: 100" />
+  </div>
+  <div class="field">
+    <label for="futuresContractSize">Tamanho do contrato FUTUROS</label>
+    <input id="futuresContractSize" type="number" step="0.0001" placeholder="Ex: 1" />
+  </div>
+  <div class="field">
+    <label for="spreadMin">Spread mínimo (%)</label>
+    <input id="spreadMin" type="number" step="0.001" placeholder="Ex: 0.2" />
+  </div>
+  <div class="field">
+    <label for="minVolume">Volume mínimo</label>
+    <input id="minVolume" type="number" step="0.0001" placeholder="Ex: 10" />
+  </div>
+  <div class="field">
+    <label for="slippageMax">Slippage máximo (%)</label>
+    <input id="slippageMax" type="number" step="0.001" placeholder="Ex: 0.15" />
+  </div>
+  <div class="field">
+    <label for="slippageEstimate">Slippage estimado (%)</label>
+    <input id="slippageEstimate" type="number" step="0.001" placeholder="Ex: 0.05" />
+  </div>
+  <div class="field">
+    <label for="maxAlertsPerMinute">Alertas por minuto</label>
+    <input id="maxAlertsPerMinute" type="number" step="1" placeholder="Ex: 6" />
+  </div>
+  <div class="field">
+    <label for="exposurePerAsset">Exposição por ativo</label>
+    <input id="exposurePerAsset" type="number" step="0.0001" placeholder="Ex: 1000" />
+  </div>
+  <div class="field">
+    <label for="exposurePerExchange">Exposição por exchange</label>
+    <input id="exposurePerExchange" type="number" step="0.0001" placeholder="Ex: 2000" />
+  </div>
+  <div class="field">
+    <label for="exposureGlobal">Exposição global</label>
+    <input id="exposureGlobal" type="number" step="0.0001" placeholder="Ex: 5000" />
+  </div>
+  <div class="field checkbox">
+    <label>
+      <input id="allowPartialExecution" type="checkbox" />
+      Permitir execução parcial
+    </label>
+  </div>
+  <button id="saveSettingsBtn">Salvar configurações</button>
 
-  <button id="confirmBtn" disabled>CONFIRMAR EXECUÇÃO</button>
-  <button id="autoBtn">MODO AUTO</button>
-  <button id="assistBtn">MODO ASSISTIDO</button>
-  <button id="panicBtn" class="danger">PANIC BUTTON</button>
-  <button id="testBtn" class="ghost">TESTE SIMULTÂNEO</button>
+  <div class="section-title">Conversão</div>
+  <div class="status" id="conversionStatus">FUTUROS: -- contratos</div>
+
+  <div class="section-title">Teste</div>
+  <div class="field">
+    <label for="testVolume">Volume teste</label>
+    <input id="testVolume" type="number" step="0.0001" placeholder="Ex: 25" />
+  </div>
+  <button id="testBtn" class="ghost">Teste de execução</button>
 </div>

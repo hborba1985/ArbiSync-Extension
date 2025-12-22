@@ -5,17 +5,20 @@ export default {
   spread: null,
   signal: false,
   mode: 'READY',
-  autoMode: false,
-  assistedMode: true,
-  panic: false,
-  losses: 0,
-  cooldownUntil: null,
-  lastEnqueueAt: null,
-  exposure: {
-    global: 0,
-    exchanges: {},
-    assets: {}
-  },
-  executionQueue: [],
-  queueHistory: []
+  alert: null,
+  lastTestExecution: null,
+  settings: {
+    spreadMin: null,
+    minVolume: null,
+    slippageMax: null,
+    maxAlertsPerMinute: null,
+    futuresContractSize: null,
+    allowPartialExecution: false,
+    exposurePerAsset: null,
+    exposurePerExchange: null,
+    exposureGlobal: null,
+    spotVolume: null,
+    testVolume: null,
+    slippageEstimate: null
+  }
 };

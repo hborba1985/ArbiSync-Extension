@@ -2,8 +2,6 @@
 import { WebSocketServer } from 'ws'
 import cfg from './config.js'
 import state from './state.js'
-import { enqueueOrder, emergencyStop, confirmOrder, clearQueue } from './executionQueue.js'
-import { clearPanic, triggerPanic } from './riskManager.js'
 
 let wss = null
 
@@ -11,35 +9,18 @@ function handleCommand(command) {
   if (!command || !command.action) return
 
   switch (command.action) {
-    case 'SET_MODE':
-      state.mode = command.mode ?? state.mode
-      state.autoMode = !!command.autoMode
-      state.assistedMode = !!command.assistedMode
-      break
-    case 'PANIC':
-      triggerPanic()
-      emergencyStop()
-      break
-    case 'CLEAR_PANIC':
-      clearPanic()
-      break
-    case 'CONFIRM_ORDER':
-      if (command.id) {
-        confirmOrder(command.id)
+    case 'UPDATE_SETTINGS':
+      state.settings = {
+        ...state.settings,
+        ...command.settings
       }
       break
-    case 'CLEAR_QUEUE':
-      clearQueue()
-      break
-    case 'ENQUEUE_ORDER':
-      enqueueOrder(command.payload)
-      break
-    case 'TEST_BURST':
-      if (Array.isArray(command.orders)) {
-        command.orders.forEach((order) =>
-          enqueueOrder({ ...order, bypassLimits: true })
-        )
+    case 'TEST_EXECUTION':
+      state.lastTestExecution = {
+        volume: command.volume ?? null,
+        at: Date.now()
       }
+      console.log('🧪 Teste de execução solicitado', state.lastTestExecution)
       break
     default:
       break
@@ -84,14 +65,9 @@ export function broadcastState() {
     mode: state.mode,
     pairGate: cfg.PAIR_GATE,
     pairMexc: cfg.PAIR_MEXC,
-    autoMode: state.autoMode,
-    assistedMode: state.assistedMode,
-    panic: state.panic,
-    losses: state.losses,
-    cooldownUntil: state.cooldownUntil,
-    exposure: state.exposure,
-    queue: state.executionQueue,
-    history: state.queueHistory
+    settings: state.settings,
+    alert: state.alert,
+    lastTestExecution: state.lastTestExecution
   })
 
   for (const client of wss.clients) {

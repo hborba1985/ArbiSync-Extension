@@ -2,6 +2,7 @@
 import { startFeeds } from './priceFeeds.js';
 import { checkArbitrage } from './arbitrageEngine.js';
 import { startBridge, broadcastState } from './bridge.js';
+import cfg from './config.js';
 import state from './state.js';
 
 console.log('🚀 Arbitrage core iniciado');

@@ -40,6 +40,7 @@ console.log('🧩 content_mexc.js carregado');
         setText('conversionStatus', 'FUTUROS: -- contratos');
 
         setupActions();
+        setupDrag();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -99,6 +100,37 @@ console.log('🧩 content_mexc.js carregado');
         });
       });
     }
+  }
+
+  function setupDrag() {
+    const panel = document.getElementById('arb-panel');
+    const handle = panel?.querySelector('.title');
+    if (!panel || !handle) return;
+
+    let dragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    handle.addEventListener('mousedown', (event) => {
+      dragging = true;
+      const rect = panel.getBoundingClientRect();
+      offsetX = event.clientX - rect.left;
+      offsetY = event.clientY - rect.top;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+    });
+
+    document.addEventListener('mousemove', (event) => {
+      if (!dragging) return;
+      const nextLeft = Math.max(0, event.clientX - offsetX);
+      const nextTop = Math.max(0, event.clientY - offsetY);
+      panel.style.left = `${nextLeft}px`;
+      panel.style.top = `${nextTop}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      dragging = false;
+    });
   }
 
   if (document.readyState === 'loading') {

@@ -3,6 +3,7 @@
   right: 18px;
   top: 18px;
   width: 320px;
+  max-height: 90vh;
   z-index: 2147483647;
   background: #1f1b3a;
   color: #fff;
@@ -10,6 +11,10 @@
   padding: 14px;
   font-family: Arial, sans-serif;
   box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+  resize: both;
+  overflow: auto;
+  min-width: 260px;
+  min-height: 240px;
 }
 
 #arb-panel.signal {
@@ -20,6 +25,7 @@
   font-weight: 800;
   font-size: 16px;
   margin-bottom: 10px;
+  cursor: move;
 }
 
 #arb-panel .row {

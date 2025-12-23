@@ -19,6 +19,14 @@ export default {
     exposureGlobal: null,
     spotVolume: null,
     testVolume: null,
-    slippageEstimate: null
+    slippageEstimate: null,
+    enableLiveExecution: false,
+    gateApiKey: null,
+    gateApiSecret: null,
+    mexcApiKey: null,
+    mexcApiSecret: null,
+    gateSymbol: null,
+    mexcSymbol: null,
+    mexcMarketType: null
   }
 };

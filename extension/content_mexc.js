@@ -61,6 +61,45 @@ console.log('🧩 content_mexc.js carregado');
   function setupActions() {
     const saveBtn = document.getElementById('saveSettingsBtn');
     const testBtn = document.getElementById('testBtn');
+    const inputs = [
+      'spotVolume',
+      'futuresContractSize',
+      'spreadMin',
+      'minVolume',
+      'slippageMax',
+      'slippageEstimate',
+      'maxAlertsPerMinute',
+      'exposurePerAsset',
+      'exposurePerExchange',
+      'exposureGlobal',
+      'testVolume',
+      'gateSymbol',
+      'mexcSymbol',
+      'mexcMarketType',
+      'gateApiKey',
+      'gateApiSecret',
+      'mexcApiKey',
+      'mexcApiSecret'
+    ];
+    inputs.forEach((id) => {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.addEventListener('input', () => {
+        input.dataset.userEdited = 'true';
+      });
+    });
+    const allowPartial = document.getElementById('allowPartialExecution');
+    if (allowPartial) {
+      allowPartial.addEventListener('change', () => {
+        allowPartial.dataset.userEdited = 'true';
+      });
+    }
+    const enableLive = document.getElementById('enableLiveExecution');
+    if (enableLive) {
+      enableLive.addEventListener('change', () => {
+        enableLive.dataset.userEdited = 'true';
+      });
+    }
 
     const readNumber = (id) => {
       const input = document.getElementById(id);
@@ -82,7 +121,16 @@ console.log('🧩 content_mexc.js carregado');
       exposureGlobal: readNumber('exposureGlobal'),
       allowPartialExecution:
         document.getElementById('allowPartialExecution')?.checked ?? false,
-      testVolume: readNumber('testVolume')
+      testVolume: readNumber('testVolume'),
+      enableLiveExecution:
+        document.getElementById('enableLiveExecution')?.checked ?? false,
+      gateSymbol: document.getElementById('gateSymbol')?.value || null,
+      mexcSymbol: document.getElementById('mexcSymbol')?.value || null,
+      mexcMarketType: document.getElementById('mexcMarketType')?.value || null,
+      gateApiKey: document.getElementById('gateApiKey')?.value || null,
+      gateApiSecret: document.getElementById('gateApiSecret')?.value || null,
+      mexcApiKey: document.getElementById('mexcApiKey')?.value || null,
+      mexcApiSecret: document.getElementById('mexcApiSecret')?.value || null
     });
 
     if (saveBtn) {
@@ -210,7 +258,11 @@ console.log('🧩 content_mexc.js carregado');
       if (testStatus && data.lastTestExecution?.at) {
         const time = new Date(data.lastTestExecution.at).toLocaleTimeString();
         const volume = data.lastTestExecution.volume ?? '--';
-        testStatus.textContent = `TESTE: ${volume} @ ${time}`;
+        const status = data.lastTestExecution.status ?? 'PENDING';
+        const error = data.lastTestExecution.error
+          ? ` - ${data.lastTestExecution.error}`
+          : '';
+        testStatus.textContent = `TESTE: ${volume} @ ${time} (${status})${error}`;
       }
 
       const conversionStatus = document.getElementById('conversionStatus');
@@ -227,7 +279,8 @@ console.log('🧩 content_mexc.js carregado');
       const settings = data.settings || {};
       const updateInput = (id, value) => {
         const input = document.getElementById(id);
-        if (!input || document.activeElement === input) return;
+        if (!input) return;
+        if (input.dataset.userEdited === 'true') return;
         if (value === null || value === undefined) return;
         input.value = value;
       };
@@ -243,10 +296,22 @@ console.log('🧩 content_mexc.js carregado');
       updateInput('exposurePerExchange', settings.exposurePerExchange);
       updateInput('exposureGlobal', settings.exposureGlobal);
       updateInput('testVolume', settings.testVolume);
+      updateInput('gateSymbol', settings.gateSymbol);
+      updateInput('mexcSymbol', settings.mexcSymbol);
+      updateInput('mexcMarketType', settings.mexcMarketType);
+      updateInput('gateApiKey', settings.gateApiKey);
+      updateInput('gateApiSecret', settings.gateApiSecret);
+      updateInput('mexcApiKey', settings.mexcApiKey);
+      updateInput('mexcApiSecret', settings.mexcApiSecret);
 
-      const allowPartial = document.getElementById('allowPartialExecution');
-      if (allowPartial && document.activeElement !== allowPartial) {
-        allowPartial.checked = !!settings.allowPartialExecution;
+      const allowPartialInput = document.getElementById('allowPartialExecution');
+      if (allowPartialInput && allowPartialInput.dataset.userEdited !== 'true') {
+        allowPartialInput.checked = !!settings.allowPartialExecution;
+      }
+
+      const enableLive = document.getElementById('enableLiveExecution');
+      if (enableLive && enableLive.dataset.userEdited !== 'true') {
+        enableLive.checked = !!settings.enableLiveExecution;
       }
     }
   });

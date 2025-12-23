@@ -17,5 +17,9 @@ export default {
     PER_ASSET: 1000,
     PER_EXCHANGE: 2000,
     GLOBAL: 5000
-  }
+  },
+
+  GATE_SYMBOL: 'WMTX/USDT',
+  MEXC_SYMBOL: 'WMTX/USDT',
+  MEXC_MARKET_TYPE: 'swap'
 };

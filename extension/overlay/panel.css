@@ -30,6 +30,14 @@
   user-select: none;
 }
 
+#arb-panel .panel-header {
+  position: sticky;
+  top: 0;
+  background: #1f1b3a;
+  padding-top: 4px;
+  z-index: 5;
+}
+
 #arb-panel .row {
   display: flex;
   justify-content: space-between;

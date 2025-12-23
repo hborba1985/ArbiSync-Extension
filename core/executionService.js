@@ -1,11 +1,21 @@
 // core/executionService.js
-import ccxt from 'ccxt';
-
 function normalizeSymbol(symbol, fallback) {
   const raw = symbol || fallback || '';
   if (raw.includes('/')) return raw;
   if (raw.includes('_')) return raw.replace('_', '/');
   return raw;
+}
+
+async function loadCcxt() {
+  try {
+    const mod = await import('ccxt');
+    return mod.default ?? mod;
+  } catch (err) {
+    const message = err?.message || String(err);
+    throw new Error(
+      `Dependência ccxt não instalada. Rode "npm install" antes de executar (${message}).`
+    );
+  }
 }
 
 function buildGateClient(settings) {
@@ -52,6 +62,7 @@ export async function executeTestOrders({
     throw new Error('Conversão de contratos inválida');
   }
 
+  const ccxt = await loadCcxt();
   const gate = buildGateClient(settings);
   const mexc = buildMexcClient(settings);
   const gateSymbol = normalizeSymbol(settings.gateSymbol, defaultGateSymbol);

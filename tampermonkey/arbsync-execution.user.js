@@ -47,8 +47,12 @@
     return null;
   }
 
-  function findButtonByText(labels) {
-    const buttons = Array.from(document.querySelectorAll('button'));
+  function findButtonByText(labels, scopeSelector) {
+    const scope = scopeSelector
+      ? document.querySelector(scopeSelector)
+      : document;
+    if (!scope) return null;
+    const buttons = Array.from(scope.querySelectorAll('button'));
     return buttons.find((btn) =>
       labels.some((label) => btn.textContent?.trim().includes(label))
     );
@@ -60,13 +64,16 @@
       return;
     }
 
-    const qtyInput = document.querySelector(
-      '#mantine-0l3yrzgvy, input[placeholder*="Quantidade"], input[placeholder*="Amount"]'
-    );
+    const qtyInput =
+      document.querySelector('#mantine-0l3yrzgvy') ||
+      document.querySelector(
+        '#trading_dom input[inputmode="decimal"], #trading_dom input[type="text"][inputmode="decimal"]'
+      ) ||
+      document.querySelector('input[placeholder*="Quantidade"], input[placeholder*="Amount"]');
     const buyButton =
       document.querySelector(
         '#trading_dom > div > div.tab_body > div > div > div:nth-child(6) > button'
-      ) || findButtonByText(['Compra', 'Comprar', 'Buy']);
+      ) || findButtonByText(['Compra', 'Comprar', 'Buy'], '#trading_dom');
 
     if (!qtyInput || !buyButton) {
       console.warn('[ArbiSync] Ajuste os seletores Gate SPOT');

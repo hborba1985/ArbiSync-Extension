@@ -55,7 +55,12 @@ console.log('🧩 content_gate.js carregado');
   }
 
   function sendCommand(command) {
-    chrome.runtime.sendMessage({ type: 'UI_COMMAND', command });
+    try {
+      if (!chrome?.runtime?.id) return;
+      chrome.runtime.sendMessage({ type: 'UI_COMMAND', command });
+    } catch (err) {
+      console.warn('Falha ao enviar comando para extensão:', err);
+    }
   }
 
   function setupActions() {
@@ -120,11 +125,6 @@ console.log('🧩 content_gate.js carregado');
     if (testBtn) {
       testBtn.addEventListener('click', () => {
         const settings = readSettings();
-        sendCommand({ action: 'UPDATE_SETTINGS', settings });
-        sendCommand({
-          action: 'TEST_EXECUTION',
-          volume: settings.testVolume
-        });
         const contractsPreview = Number(
           document.getElementById('conversionStatus')?.dataset.contracts || 0
         );
@@ -138,6 +138,11 @@ console.log('🧩 content_gate.js carregado');
           },
           '*'
         );
+        sendCommand({ action: 'UPDATE_SETTINGS', settings });
+        sendCommand({
+          action: 'TEST_EXECUTION',
+          volume: settings.testVolume
+        });
       });
     }
   }

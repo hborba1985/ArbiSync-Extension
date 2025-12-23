@@ -73,8 +73,9 @@
       return;
     }
 
-    qtyInput.value = volume;
-    qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+    setNativeValue(qtyInput, String(volume));
+    dispatchInputEvents(qtyInput);
+    await delay(150);
     buyButton.click();
   }
 
@@ -97,8 +98,35 @@
       return;
     }
 
-    qtyInput.value = contracts;
-    qtyInput.dispatchEvent(new Event('input', { bubbles: true }));
+    setNativeValue(qtyInput, String(contracts));
+    dispatchInputEvents(qtyInput);
+    await delay(150);
     sellButton.click();
+  }
+
+  function setNativeValue(element, value) {
+    const { set } = Object.getOwnPropertyDescriptor(element, 'value') || {};
+    const prototype = Object.getPrototypeOf(element);
+    const { set: prototypeSet } = Object.getOwnPropertyDescriptor(
+      prototype,
+      'value'
+    ) || {};
+    if (prototypeSet) {
+      prototypeSet.call(element, value);
+    } else if (set) {
+      set.call(element, value);
+    } else {
+      element.value = value;
+    }
+  }
+
+  function dispatchInputEvents(element) {
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: '0' }));
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 })();

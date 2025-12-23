@@ -61,9 +61,12 @@
     }
 
     const qtyInput = document.querySelector(
-      'input[placeholder*="Quantidade"], input[placeholder*="Amount"]'
+      '#mantine-0l3yrzgvy, input[placeholder*="Quantidade"], input[placeholder*="Amount"]'
     );
-    const buyButton = findButtonByText(['Comprar', 'Buy']);
+    const buyButton =
+      document.querySelector(
+        '#trading_dom > div > div.tab_body > div > div > div:nth-child(6) > button'
+      ) || findButtonByText(['Compra', 'Comprar', 'Buy']);
 
     if (!qtyInput || !buyButton) {
       console.warn('[ArbiSync] Ajuste os seletores Gate SPOT');
@@ -82,9 +85,12 @@
     }
 
     const qtyInput = document.querySelector(
-      'input[placeholder*="Quantidade"], input[placeholder*="Qty"]'
+      '#mexc_contract_v_open_position > div > div.component_inputWrapper__LP4Dm > div.component_numberInput__PF7Vf > div > div.InputNumberHandle_inputOuterWrapper__8w_l1 > div > div > input, input[placeholder*="Quantidade"], input[placeholder*="Qty"]'
     );
-    const sellButton = findButtonByText(['Abrir Short', 'Short']);
+    const sellButton =
+      document.querySelector(
+        '#mexc_contract_v_open_position_info_login > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_shortBtn__x5P3I.component_withColor__LqLhs'
+      ) || findButtonByText(['Abrir Short', 'Short']);
 
     if (!qtyInput || !sellButton) {
       console.warn('[ArbiSync] Ajuste os seletores MEXC FUTUROS');

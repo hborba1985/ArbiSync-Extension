@@ -2,7 +2,6 @@
 import { WebSocketServer } from 'ws'
 import cfg from './config.js'
 import state from './state.js'
-import { executeTestOrders } from './executionService.js'
 
 let wss = null
 
@@ -20,36 +19,10 @@ function handleCommand(command) {
       state.lastTestExecution = {
         volume: command.volume ?? null,
         at: Date.now(),
-        status: 'PENDING',
+        status: 'REQUESTED',
         error: null
       }
       console.log('🧪 Teste de execução solicitado', state.lastTestExecution)
-      Promise.resolve()
-        .then(async () => {
-          const spotVolume = command.volume ?? state.settings.testVolume ?? 0
-          const futuresContracts = state.alert?.futuresContracts ?? 0
-          const result = await executeTestOrders({
-            settings: state.settings,
-            spotVolume,
-            futuresContracts,
-            defaultGateSymbol: cfg.GATE_SYMBOL,
-            defaultMexcSymbol: cfg.MEXC_SYMBOL
-          })
-          state.lastTestExecution = {
-            volume: spotVolume,
-            at: Date.now(),
-            status: 'EXECUTED',
-            result
-          }
-        })
-        .catch((err) => {
-          state.lastTestExecution = {
-            volume: command.volume ?? state.settings.testVolume ?? null,
-            at: Date.now(),
-            status: 'FAILED',
-            error: err?.message || String(err)
-          }
-        })
       break
     default:
       break

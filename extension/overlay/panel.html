@@ -81,40 +81,7 @@
   </div>
   <button id="testBtn" class="ghost">Teste de execução</button>
 
-  <div class="section-title">Execução via API</div>
-  <div class="field checkbox">
-    <label>
-      <input id="enableLiveExecution" type="checkbox" />
-      Habilitar execução ao vivo
-    </label>
-  </div>
-  <div class="field">
-    <label for="gateSymbol">Símbolo Gate (SPOT)</label>
-    <input id="gateSymbol" type="text" placeholder="Ex: WMTX/USDT" />
-  </div>
-  <div class="field">
-    <label for="gateApiKey">Gate API Key</label>
-    <input id="gateApiKey" type="password" autocomplete="off" />
-  </div>
-  <div class="field">
-    <label for="gateApiSecret">Gate API Secret</label>
-    <input id="gateApiSecret" type="password" autocomplete="off" />
-  </div>
-  <div class="field">
-    <label for="mexcSymbol">Símbolo MEXC (FUTUROS)</label>
-    <input id="mexcSymbol" type="text" placeholder="Ex: WMTX/USDT" />
-  </div>
-  <div class="field">
-    <label for="mexcMarketType">Tipo de mercado MEXC</label>
-    <input id="mexcMarketType" type="text" placeholder="Ex: swap" />
-  </div>
-  <div class="field">
-    <label for="mexcApiKey">MEXC API Key</label>
-    <input id="mexcApiKey" type="password" autocomplete="off" />
-  </div>
-  <div class="field">
-    <label for="mexcApiSecret">MEXC API Secret</label>
-    <input id="mexcApiSecret" type="password" autocomplete="off" />
-  </div>
+  <div class="section-title">Execução sincronizada</div>
+  <div class="status" id="syncStatus">SYNC: aguardando Tampermonkey</div>
   <div class="resizer" aria-hidden="true"></div>
 </div>

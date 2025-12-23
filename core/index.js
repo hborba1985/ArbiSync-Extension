@@ -26,14 +26,7 @@ state.settings = {
   spotVolume: cfg.ORDER_VOLUME,
   testVolume: cfg.MIN_VOLUME,
   slippageEstimate: 0,
-  enableLiveExecution: false,
-  gateApiKey: null,
-  gateApiSecret: null,
-  mexcApiKey: null,
-  mexcApiSecret: null,
-  gateSymbol: cfg.GATE_SYMBOL,
-  mexcSymbol: cfg.MEXC_SYMBOL,
-  mexcMarketType: cfg.MEXC_MARKET_TYPE
+  enableLiveExecution: false
 };
 
 setInterval(() => {

@@ -20,13 +20,6 @@ export default {
     spotVolume: null,
     testVolume: null,
     slippageEstimate: null,
-    enableLiveExecution: false,
-    gateApiKey: null,
-    gateApiSecret: null,
-    mexcApiKey: null,
-    mexcApiSecret: null,
-    gateSymbol: null,
-    mexcSymbol: null,
-    mexcMarketType: null
+    enableLiveExecution: false
   }
 };

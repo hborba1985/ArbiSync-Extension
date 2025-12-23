@@ -72,14 +72,7 @@ console.log('🧩 content_gate.js carregado');
       'exposurePerAsset',
       'exposurePerExchange',
       'exposureGlobal',
-      'testVolume',
-      'gateSymbol',
-      'mexcSymbol',
-      'mexcMarketType',
-      'gateApiKey',
-      'gateApiSecret',
-      'mexcApiKey',
-      'mexcApiSecret'
+      'testVolume'
     ];
     inputs.forEach((id) => {
       const input = document.getElementById(id);
@@ -94,13 +87,6 @@ console.log('🧩 content_gate.js carregado');
         allowPartial.dataset.userEdited = 'true';
       });
     }
-    const enableLive = document.getElementById('enableLiveExecution');
-    if (enableLive) {
-      enableLive.addEventListener('change', () => {
-        enableLive.dataset.userEdited = 'true';
-      });
-    }
-
     const readNumber = (id) => {
       const input = document.getElementById(id);
       if (!input) return null;
@@ -122,15 +108,7 @@ console.log('🧩 content_gate.js carregado');
       allowPartialExecution:
         document.getElementById('allowPartialExecution')?.checked ?? false,
       testVolume: readNumber('testVolume'),
-      enableLiveExecution:
-        document.getElementById('enableLiveExecution')?.checked ?? false,
-      gateSymbol: document.getElementById('gateSymbol')?.value || null,
-      mexcSymbol: document.getElementById('mexcSymbol')?.value || null,
-      mexcMarketType: document.getElementById('mexcMarketType')?.value || null,
-      gateApiKey: document.getElementById('gateApiKey')?.value || null,
-      gateApiSecret: document.getElementById('gateApiSecret')?.value || null,
-      mexcApiKey: document.getElementById('mexcApiKey')?.value || null,
-      mexcApiSecret: document.getElementById('mexcApiSecret')?.value || null
+      enableLiveExecution: false
     });
 
     if (saveBtn) {
@@ -147,6 +125,19 @@ console.log('🧩 content_gate.js carregado');
           action: 'TEST_EXECUTION',
           volume: settings.testVolume
         });
+        const contractsPreview = Number(
+          document.getElementById('conversionStatus')?.dataset.contracts || 0
+        );
+        window.postMessage(
+          {
+            type: 'ARBSYNC_TEST_EXECUTION',
+            payload: {
+              spotVolume: settings.testVolume,
+              futuresContracts: contractsPreview
+            }
+          },
+          '*'
+        );
       });
     }
   }
@@ -231,6 +222,14 @@ console.log('🧩 content_gate.js carregado');
     ensureOverlay();
   }
 
+  window.addEventListener('message', (event) => {
+    if (!event?.data || event.data.type !== 'ARBSYNC_SYNC_READY') return;
+    const syncStatus = document.getElementById('syncStatus');
+    if (syncStatus) {
+      syncStatus.textContent = 'SYNC: Tampermonkey conectado';
+    }
+  });
+
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || !msg.type) return;
 
@@ -259,16 +258,19 @@ console.log('🧩 content_gate.js carregado');
         const time = new Date(data.lastTestExecution.at).toLocaleTimeString();
         const volume = data.lastTestExecution.volume ?? '--';
         const status = data.lastTestExecution.status ?? 'PENDING';
-        const error = data.lastTestExecution.error
-          ? ` - ${data.lastTestExecution.error}`
-          : '';
-        testStatus.textContent = `TESTE: ${volume} @ ${time} (${status})${error}`;
+        testStatus.textContent = `TESTE: ${volume} @ ${time} (${status})`;
       }
 
       const conversionStatus = document.getElementById('conversionStatus');
       if (conversionStatus) {
         const contracts = data.alert?.futuresContracts ?? 0;
         conversionStatus.textContent = `FUTUROS: ${contracts.toFixed(4)} contratos`;
+        conversionStatus.dataset.contracts = String(contracts);
+      }
+
+      const syncStatus = document.getElementById('syncStatus');
+      if (syncStatus) {
+        syncStatus.textContent = 'SYNC: pronto para Tampermonkey';
       }
 
       const panel = document.getElementById('arb-panel');
@@ -296,22 +298,9 @@ console.log('🧩 content_gate.js carregado');
       updateInput('exposurePerExchange', settings.exposurePerExchange);
       updateInput('exposureGlobal', settings.exposureGlobal);
       updateInput('testVolume', settings.testVolume);
-      updateInput('gateSymbol', settings.gateSymbol);
-      updateInput('mexcSymbol', settings.mexcSymbol);
-      updateInput('mexcMarketType', settings.mexcMarketType);
-      updateInput('gateApiKey', settings.gateApiKey);
-      updateInput('gateApiSecret', settings.gateApiSecret);
-      updateInput('mexcApiKey', settings.mexcApiKey);
-      updateInput('mexcApiSecret', settings.mexcApiSecret);
-
       const allowPartial = document.getElementById('allowPartialExecution');
       if (allowPartial && allowPartial.dataset.userEdited !== 'true') {
         allowPartial.checked = !!settings.allowPartialExecution;
-      }
-
-      const enableLive = document.getElementById('enableLiveExecution');
-      if (enableLive && enableLive.dataset.userEdited !== 'true') {
-        enableLive.checked = !!settings.enableLiveExecution;
       }
     }
   });

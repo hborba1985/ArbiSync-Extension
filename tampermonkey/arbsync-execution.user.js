@@ -56,15 +56,23 @@
     return null;
   }
 
-  function findButtonByText(labels, scopeSelector) {
+  function findButtonByText(labels, scopeSelector, { skipTabs = false } = {}) {
     const scope = scopeSelector
       ? document.querySelector(scopeSelector)
       : document;
     if (!scope) return null;
     const buttons = Array.from(scope.querySelectorAll('button'));
-    return buttons.find((btn) =>
-      labels.some((label) => btn.textContent?.trim().includes(label))
-    );
+    return buttons.find((btn) => {
+      if (skipTabs && isTabButton(btn)) return false;
+      return labels.some((label) => btn.textContent?.trim().includes(label));
+    });
+  }
+
+  function isTabButton(button) {
+    if (!button) return false;
+    if (button.getAttribute('role') === 'tab') return true;
+    if (button.closest('[role="tablist"]')) return true;
+    return Boolean(button.closest('[class*="tab"]'));
   }
 
   async function executeGateSpot(volume, context = {}) {
@@ -83,11 +91,13 @@
     const modes = context.modes || {};
     const buyButton = findButtonByText(
       buildSpotButtonLabels(modes.openActionSpot || 'BUY', symbolLabel),
-      '#trading_dom'
+      '#trading_dom',
+      { skipTabs: true }
     );
     const sellButton = findButtonByText(
       buildSpotButtonLabels(modes.closeActionSpot || 'SELL', symbolLabel),
-      '#trading_dom'
+      '#trading_dom',
+      { skipTabs: true }
     );
 
     if (!qtyInput) {

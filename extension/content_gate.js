@@ -256,6 +256,14 @@ console.log('🧩 content_gate.js carregado');
     }
   });
 
+  window.addEventListener('message', (event) => {
+    if (!event?.data || event.data.type !== 'ARBSYNC_ALERT') return;
+    const testStatus = document.getElementById('testStatus');
+    if (testStatus) {
+      testStatus.textContent = `TESTE: ${event.data.message}`;
+    }
+  });
+
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || !msg.type) return;
 

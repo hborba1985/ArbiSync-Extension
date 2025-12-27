@@ -131,8 +131,14 @@
     if (modes.openEnabled && buyMatch) {
       buyMatch.click();
     }
+    if (modes.openEnabled && !buyMatch) {
+      sendAlert('Não encontrei "Compra". Verifique se a aba Compra está ativa.');
+    }
     if (modes.closeEnabled && sellMatch) {
       sellMatch.click();
+    }
+    if (modes.closeEnabled && !sellMatch) {
+      sendAlert('Não encontrei "Venda". Verifique se a aba Venda está ativa.');
     }
   }
 
@@ -194,6 +200,11 @@
 
   function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function sendAlert(message) {
+    window.postMessage({ type: 'ARBSYNC_ALERT', message }, '*');
+    console.warn('[ArbiSync]', message);
   }
 
   function findGateSubmitButtons() {

@@ -118,11 +118,11 @@
     const sellButton =
       document.querySelector(
         '#mexc_contract_v_open_position_info_login > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_shortBtn__x5P3I.component_withColor__LqLhs'
-      ) || findButtonByText(['Abrir Short', 'Short']);
+      ) || findButtonByText(['Abrir Short', 'Short', 'Abrir'], '#mexc_contract_v_open_position_info_login');
     const closeButton =
       document.querySelector(
         '#mexc_contract_v_open_position_info_login > section > div > div:nth-child(2) > div > button'
-      ) || findButtonByText(['Fechar Short', 'Close Short', 'Fechar'], '#mexc_contract_v_open_position_info_login');
+      ) || findButtonByText(['Fechar Short', 'Fechar Long', 'Fechar'], '#mexc_contract_v_open_position_info_login');
 
     if (!qtyInput || !sellButton) {
       console.warn('[ArbiSync] Ajuste os seletores MEXC FUTUROS');
@@ -172,7 +172,7 @@
   }
 
   function buildSpotButtonLabels(action, symbolLabel) {
-    const verb = action === 'SELL' ? 'Vender' : 'Comprar';
+    const verb = action === 'SELL' ? 'Venda' : 'Compra';
     const fallback = action === 'SELL' ? 'Sell' : 'Buy';
     if (!symbolLabel) return [verb, fallback];
     return [`${verb} ${symbolLabel}`, verb, `${fallback} ${symbolLabel}`, fallback];

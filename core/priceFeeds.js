@@ -32,6 +32,14 @@ function startGateSpot() {
         payload: [cfg.PAIR_GATE]
       })
     );
+    ws.send(
+      JSON.stringify({
+        time: Math.floor(Date.now() / 1000),
+        channel: 'spot.order_book',
+        event: 'subscribe',
+        payload: [cfg.PAIR_GATE, '100ms', '1']
+      })
+    );
   });
 
   ws.on('message', (raw) => {
@@ -71,6 +79,17 @@ function startGateSpot() {
           state.gateBidSize = bidSize;
         }
       }
+
+      if (msg.channel === 'spot.order_book' && msg.result) {
+        const askSize = Number(msg.result.asks?.[0]?.[1]);
+        if (!Number.isNaN(askSize)) {
+          state.gateAskSize = askSize;
+        }
+        const bidSize = Number(msg.result.bids?.[0]?.[1]);
+        if (!Number.isNaN(bidSize)) {
+          state.gateBidSize = bidSize;
+        }
+      }
     } catch (err) {
       console.error('❌ Erro ao processar Gate:', err.message);
     }
@@ -102,6 +121,15 @@ function startMexcFutures() {
         method: 'sub.ticker',
         param: {
           symbol: cfg.PAIR_MEXC
+        }
+      })
+    );
+    ws.send(
+      JSON.stringify({
+        method: 'sub.depth',
+        param: {
+          symbol: cfg.PAIR_MEXC,
+          level: 1
         }
       })
     );
@@ -146,6 +174,17 @@ function startMexcFutures() {
         const askSize = Number(rawAskSize);
         if (!Number.isNaN(askSize)) {
           state.mexcAskSize = askSize;
+        }
+      }
+
+      if (msg?.data?.asks || msg?.data?.bids) {
+        const depthAskSize = Number(msg.data?.asks?.[0]?.[1]);
+        if (!Number.isNaN(depthAskSize)) {
+          state.mexcAskSize = depthAskSize;
+        }
+        const depthBidSize = Number(msg.data?.bids?.[0]?.[1]);
+        if (!Number.isNaN(depthBidSize)) {
+          state.mexcBidSize = depthBidSize;
         }
       }
     } catch (err) {

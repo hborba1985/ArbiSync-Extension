@@ -147,12 +147,18 @@
     );
     const sellButton =
       document.querySelector(
-        '#mexc_contract_v_open_position_info_login > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_shortBtn__x5P3I.component_withColor__LqLhs'
-      ) || findButtonByText(['Abrir Short', 'Short', 'Abrir'], '#mexc_contract_v_open_position_info_login');
+        'button[data-testid="contract-trade-open-short-btn"]'
+      ) || findButtonByText(
+        ['Abrir Short', 'Short', 'Abrir'],
+        '#mexc_contract_v_open_position_info_login'
+      );
     const closeButton =
       document.querySelector(
-        '#mexc_contract_v_open_position_info_login > section > div > div:nth-child(2) > div > button'
-      ) || findButtonByText(['Fechar Short', 'Fechar Long', 'Fechar'], '#mexc_contract_v_open_position_info_login');
+        'button[data-testid="contract-trade-close-short-btn"]'
+      ) || findButtonByText(
+        ['Fechar Short', 'Fechar Long', 'Fechar'],
+        '#mexc_contract_v_open_position_info_login'
+      );
 
     if (!qtyInput || !sellButton) {
       console.warn('[ArbiSync] Ajuste os seletores MEXC FUTUROS');
@@ -165,8 +171,14 @@
     if (context.modes?.openEnabled && sellButton) {
       sellButton.click();
     }
+    if (context.modes?.openEnabled && !sellButton) {
+      sendAlert('Não encontrei "Abrir Short". Verifique se a aba Abrir está ativa.');
+    }
     if (context.modes?.closeEnabled && closeButton) {
       closeButton.click();
+    }
+    if (context.modes?.closeEnabled && !closeButton) {
+      sendAlert('Não encontrei "Fechar Short". Verifique se a aba Fechar está ativa.');
     }
   }
 

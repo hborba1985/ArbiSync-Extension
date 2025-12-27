@@ -145,7 +145,7 @@ console.log('🧩 content_mexc.js carregado');
             type: 'ARBSYNC_TEST_EXECUTION',
             payload: {
               spotVolume: settings.testVolume,
-              futuresContracts: contractsPreview,
+              futuresContracts: settings.testVolume,
               pairGate: testBtn.dataset.pairGate || '',
               pairMexc: testBtn.dataset.pairMexc || '',
               modes: settings.executionModes

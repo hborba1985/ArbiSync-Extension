@@ -108,11 +108,31 @@
     setNativeValue(qtyInput, String(volume));
     dispatchInputEvents(qtyInput);
     await delay(150);
-    if (modes.openEnabled && buyButton) {
-      buyButton.click();
+    const actionLabel = buildSpotButtonLabels(
+      modes.openActionSpot || 'BUY',
+      symbolLabel
+    );
+    const closeLabel = buildSpotButtonLabels(
+      modes.closeActionSpot || 'SELL',
+      symbolLabel
+    );
+    const gateButtons = findGateSubmitButtons();
+    const buyMatch = gateButtons.find((btn) =>
+      actionLabel.some((label) =>
+        btn.textContent?.trim().includes(label)
+      )
+    );
+    const sellMatch = gateButtons.find((btn) =>
+      closeLabel.some((label) =>
+        btn.textContent?.trim().includes(label)
+      )
+    );
+
+    if (modes.openEnabled && buyMatch) {
+      buyMatch.click();
     }
-    if (modes.closeEnabled && sellButton) {
-      sellButton.click();
+    if (modes.closeEnabled && sellMatch) {
+      sellMatch.click();
     }
   }
 
@@ -174,6 +194,14 @@
 
   function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function findGateSubmitButtons() {
+    return Array.from(
+      document.querySelectorAll(
+        '#trading_dom button[data-testid="tr-submit-btn"]'
+      )
+    );
   }
 
   function normalizeSymbol(symbol) {

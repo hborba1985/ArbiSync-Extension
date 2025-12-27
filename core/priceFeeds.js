@@ -38,11 +38,17 @@ function startGateSpot() {
     try {
       const msg = JSON.parse(raw.toString());
 
-      // spot.tickers retorna result com lowest_ask
-      if (msg.result && msg.result.lowest_ask) {
+      // spot.tickers retorna result com lowest_ask e highest_bid
+      if (msg.result?.lowest_ask) {
         const ask = Number(msg.result.lowest_ask);
         if (!Number.isNaN(ask)) {
           state.askGate = ask;
+        }
+      }
+      if (msg.result?.highest_bid) {
+        const bid = Number(msg.result.highest_bid);
+        if (!Number.isNaN(bid)) {
+          state.bidGate = bid;
         }
       }
     } catch (err) {
@@ -85,12 +91,19 @@ function startMexcFutures() {
     try {
       const msg = JSON.parse(raw.toString());
 
-      // ticker da MEXC futures: data.bid ou data.bid1 (pode vir como string)
+      // ticker da MEXC futures: data.bid/bid1 e data.ask/ask1 (pode vir como string)
       const rawBid = msg?.data?.bid ?? msg?.data?.bid1;
       if (rawBid != null) {
         const bid = Number(rawBid);
         if (!Number.isNaN(bid)) {
           state.bidMexc = bid;
+        }
+      }
+      const rawAsk = msg?.data?.ask ?? msg?.data?.ask1;
+      if (rawAsk != null) {
+        const ask = Number(rawAsk);
+        if (!Number.isNaN(ask)) {
+          state.askMexc = ask;
         }
       }
     } catch (err) {

@@ -283,8 +283,13 @@ console.log('🧩 content_gate.js carregado');
         spreadOpen.classList.toggle('positive', data.spread >= 0);
         spreadOpen.classList.toggle('negative', data.spread < 0);
       }
-      if (spreadClose && typeof data.spread === 'number') {
-        const closeSpread = data.spread * -1;
+      if (
+        spreadClose &&
+        typeof data.bidGate === 'number' &&
+        typeof data.askMexc === 'number'
+      ) {
+        const closeSpread =
+          ((data.bidGate - data.askMexc) / data.askMexc) * 100;
         spreadClose.textContent = `${closeSpread.toFixed(3)}%`;
         spreadClose.classList.toggle('positive', closeSpread >= 0);
         spreadClose.classList.toggle('negative', closeSpread < 0);

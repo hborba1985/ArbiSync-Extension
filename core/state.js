@@ -1,7 +1,9 @@
 // core/state.js
 export default {
   askGate: null,
+  bidGate: null,
   bidMexc: null,
+  askMexc: null,
   spread: null,
   signal: false,
   mode: 'READY',

@@ -61,7 +61,9 @@ export function broadcastState() {
 
   const payload = JSON.stringify({
     askGate: state.askGate,
+    bidGate: state.bidGate,
     bidMexc: state.bidMexc,
+    askMexc: state.askMexc,
     spread: state.spread,
     signal: state.signal,
     mode: state.mode,

@@ -133,7 +133,11 @@ console.log('🧩 content_mexc.js carregado');
             type: 'ARBSYNC_TEST_EXECUTION',
             payload: {
               spotVolume: settings.testVolume,
-              futuresContracts: contractsPreview
+              futuresContracts: contractsPreview,
+              pairGate: testBtn.dataset.pairGate || '',
+              pairMexc: testBtn.dataset.pairMexc || '',
+              mode: 'OPEN',
+              actionSpot: 'BUY'
             }
           },
           '*'
@@ -303,6 +307,11 @@ console.log('🧩 content_mexc.js carregado');
       updateInput('exposurePerExchange', settings.exposurePerExchange);
       updateInput('exposureGlobal', settings.exposureGlobal);
       updateInput('testVolume', settings.testVolume);
+      const testBtn = document.getElementById('testBtn');
+      if (testBtn) {
+        testBtn.dataset.pairGate = data.pairGate || '';
+        testBtn.dataset.pairMexc = data.pairMexc || '';
+      }
       const allowPartialInput = document.getElementById('allowPartialExecution');
       if (allowPartialInput && allowPartialInput.dataset.userEdited !== 'true') {
         allowPartialInput.checked = !!settings.allowPartialExecution;

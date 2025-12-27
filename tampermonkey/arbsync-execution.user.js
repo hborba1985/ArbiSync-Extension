@@ -30,13 +30,24 @@
     const payload = event.data.payload || {};
     const spotVolume = Number(payload.spotVolume || 0);
     const futuresContracts = Number(payload.futuresContracts || 0);
+    const gateSymbol = normalizeSymbol(payload.pairGate);
+    const mexcSymbol = normalizeSymbol(payload.pairMexc);
+    const actionSpot = payload.actionSpot || 'BUY';
+    const mode = payload.mode || 'OPEN';
 
     if (EXCHANGE === 'GATE') {
-      await executeGateSpot(spotVolume);
+      await executeGateSpot(spotVolume, {
+        symbol: gateSymbol,
+        action: actionSpot,
+        mode
+      });
     }
 
     if (EXCHANGE === 'MEXC') {
-      await executeMexcFutures(futuresContracts);
+      await executeMexcFutures(futuresContracts, {
+        symbol: mexcSymbol,
+        mode
+      });
     }
   });
 
@@ -58,7 +69,7 @@
     );
   }
 
-  async function executeGateSpot(volume) {
+  async function executeGateSpot(volume, context = {}) {
     if (!volume) {
       console.warn('[ArbiSync] Volume SPOT inválido');
       return;
@@ -70,6 +81,7 @@
         '#trading_dom input[inputmode="decimal"], #trading_dom input[type="text"][inputmode="decimal"]'
       ) ||
       document.querySelector('input[placeholder*="Quantidade"], input[placeholder*="Amount"]');
+    const symbolLabel = (context.symbol || '').toUpperCase();
     const buyButton =
       document.querySelector(
         '#trading_dom > div > div.tab_body > div > div > div:nth-child(7) > button'
@@ -80,7 +92,10 @@
       document.querySelector(
         '#trading_dom > div > div.tab_body > div > div > div:nth-child(6) > button'
       ) ||
-      findButtonByText(['Compra', 'Comprar', 'Buy'], '#trading_dom');
+      findButtonByText(
+        buildSpotButtonLabels(context.action, symbolLabel),
+        '#trading_dom'
+      );
 
     if (!qtyInput || !buyButton) {
       console.warn('[ArbiSync] Ajuste os seletores Gate SPOT');
@@ -93,7 +108,7 @@
     buyButton.click();
   }
 
-  async function executeMexcFutures(contracts) {
+  async function executeMexcFutures(contracts, context = {}) {
     if (!contracts) {
       console.warn('[ArbiSync] Contratos FUTUROS inválidos');
       return;
@@ -142,5 +157,17 @@
 
   function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function normalizeSymbol(symbol) {
+    if (!symbol) return '';
+    return symbol.split('_')[0] || symbol.split('/')[0] || symbol;
+  }
+
+  function buildSpotButtonLabels(action, symbolLabel) {
+    const verb = action === 'SELL' ? 'Vender' : 'Comprar';
+    const fallback = action === 'SELL' ? 'Sell' : 'Buy';
+    if (!symbolLabel) return [verb, fallback];
+    return [`${verb} ${symbolLabel}`, verb, `${fallback} ${symbolLabel}`, fallback];
   }
 })();

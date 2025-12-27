@@ -13,6 +13,33 @@ export function startFeeds() {
   startMexcFutures();
 }
 
+function normalizeBookSize(entry) {
+  if (entry == null) return null;
+  if (Array.isArray(entry)) {
+    return Number(entry[1]);
+  }
+  if (typeof entry === 'object') {
+    return Number(
+      entry.size ??
+        entry.qty ??
+        entry.quantity ??
+        entry.vol ??
+        entry.volume ??
+        entry.amount ??
+        entry.q
+    );
+  }
+  return Number(entry);
+}
+
+function normalizeFuturesSize(size) {
+  const contractSize =
+    state.settings?.futuresContractSize ?? cfg.FUTURES_CONTRACT_SIZE;
+  if (!Number.isFinite(size)) return size;
+  if (!Number.isFinite(contractSize) || contractSize <= 0) return size;
+  return size * contractSize;
+}
+
 /* ========================================================= */
 /* ====================== GATE SPOT ======================== */
 /* ========================================================= */
@@ -81,11 +108,13 @@ function startGateSpot() {
       }
 
       if (msg.channel === 'spot.order_book' && msg.result) {
-        const askSize = Number(msg.result.asks?.[0]?.[1]);
+        const asks = msg.result.asks ?? msg.result.a;
+        const bids = msg.result.bids ?? msg.result.b;
+        const askSize = normalizeBookSize(asks?.[0]);
         if (!Number.isNaN(askSize)) {
           state.gateAskSize = askSize;
         }
-        const bidSize = Number(msg.result.bids?.[0]?.[1]);
+        const bidSize = normalizeBookSize(bids?.[0]);
         if (!Number.isNaN(bidSize)) {
           state.gateBidSize = bidSize;
         }
@@ -153,7 +182,7 @@ function startMexcFutures() {
         msg?.data?.bidVol ??
         msg?.data?.bidQty;
       if (rawBidSize != null) {
-        const bidSize = Number(rawBidSize);
+        const bidSize = normalizeFuturesSize(Number(rawBidSize));
         if (!Number.isNaN(bidSize)) {
           state.mexcBidSize = bidSize;
         }
@@ -171,18 +200,22 @@ function startMexcFutures() {
         msg?.data?.askVol ??
         msg?.data?.askQty;
       if (rawAskSize != null) {
-        const askSize = Number(rawAskSize);
+        const askSize = normalizeFuturesSize(Number(rawAskSize));
         if (!Number.isNaN(askSize)) {
           state.mexcAskSize = askSize;
         }
       }
 
       if (msg?.data?.asks || msg?.data?.bids) {
-        const depthAskSize = Number(msg.data?.asks?.[0]?.[1]);
+        const depthAskSize = normalizeFuturesSize(
+          normalizeBookSize(msg.data?.asks?.[0])
+        );
         if (!Number.isNaN(depthAskSize)) {
           state.mexcAskSize = depthAskSize;
         }
-        const depthBidSize = Number(msg.data?.bids?.[0]?.[1]);
+        const depthBidSize = normalizeFuturesSize(
+          normalizeBookSize(msg.data?.bids?.[0])
+        );
         if (!Number.isNaN(depthBidSize)) {
           state.mexcBidSize = depthBidSize;
         }

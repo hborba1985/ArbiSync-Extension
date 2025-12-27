@@ -26,7 +26,13 @@ state.settings = {
   spotVolume: cfg.ORDER_VOLUME,
   testVolume: cfg.MIN_VOLUME,
   slippageEstimate: 0,
-  enableLiveExecution: false
+  enableLiveExecution: false,
+  executionModes: {
+    openEnabled: true,
+    closeEnabled: false,
+    openActionSpot: 'BUY',
+    closeActionSpot: 'SELL'
+  }
 };
 
 setInterval(() => {

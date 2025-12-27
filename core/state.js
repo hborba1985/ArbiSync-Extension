@@ -20,6 +20,12 @@ export default {
     spotVolume: null,
     testVolume: null,
     slippageEstimate: null,
-    enableLiveExecution: false
+    enableLiveExecution: false,
+    executionModes: {
+      openEnabled: true,
+      closeEnabled: false,
+      openActionSpot: 'BUY',
+      closeActionSpot: 'SELL'
+    }
   }
 };

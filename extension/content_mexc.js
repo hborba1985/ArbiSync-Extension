@@ -92,6 +92,18 @@ console.log('🧩 content_mexc.js carregado');
         allowPartial.dataset.userEdited = 'true';
       });
     }
+    const openEnabled = document.getElementById('openEnabled');
+    const closeEnabled = document.getElementById('closeEnabled');
+    const openActionSpot = document.getElementById('openActionSpot');
+    const closeActionSpot = document.getElementById('closeActionSpot');
+    [openEnabled, closeEnabled, openActionSpot, closeActionSpot].forEach(
+      (el) => {
+        if (!el) return;
+        el.addEventListener('change', () => {
+          el.dataset.userEdited = 'true';
+        });
+      }
+    );
     const readNumber = (id) => {
       const input = document.getElementById(id);
       if (!input) return null;
@@ -113,7 +125,13 @@ console.log('🧩 content_mexc.js carregado');
       allowPartialExecution:
         document.getElementById('allowPartialExecution')?.checked ?? false,
       testVolume: readNumber('testVolume'),
-      enableLiveExecution: false
+      enableLiveExecution: false,
+      executionModes: {
+        openEnabled: openEnabled?.checked ?? true,
+        closeEnabled: closeEnabled?.checked ?? false,
+        openActionSpot: openActionSpot?.value || 'BUY',
+        closeActionSpot: closeActionSpot?.value || 'SELL'
+      }
     });
 
     if (saveBtn) {
@@ -136,8 +154,7 @@ console.log('🧩 content_mexc.js carregado');
               futuresContracts: contractsPreview,
               pairGate: testBtn.dataset.pairGate || '',
               pairMexc: testBtn.dataset.pairMexc || '',
-              mode: 'OPEN',
-              actionSpot: 'BUY'
+              modes: settings.executionModes
             }
           },
           '*'
@@ -315,6 +332,20 @@ console.log('🧩 content_mexc.js carregado');
       const allowPartialInput = document.getElementById('allowPartialExecution');
       if (allowPartialInput && allowPartialInput.dataset.userEdited !== 'true') {
         allowPartialInput.checked = !!settings.allowPartialExecution;
+      }
+      if (settings.executionModes) {
+        if (openEnabled && openEnabled.dataset.userEdited !== 'true') {
+          openEnabled.checked = !!settings.executionModes.openEnabled;
+        }
+        if (closeEnabled && closeEnabled.dataset.userEdited !== 'true') {
+          closeEnabled.checked = !!settings.executionModes.closeEnabled;
+        }
+        if (openActionSpot && openActionSpot.dataset.userEdited !== 'true') {
+          openActionSpot.value = settings.executionModes.openActionSpot || 'BUY';
+        }
+        if (closeActionSpot && closeActionSpot.dataset.userEdited !== 'true') {
+          closeActionSpot.value = settings.executionModes.closeActionSpot || 'SELL';
+        }
       }
     }
   });

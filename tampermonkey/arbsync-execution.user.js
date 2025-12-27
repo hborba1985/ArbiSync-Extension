@@ -32,21 +32,19 @@
     const futuresContracts = Number(payload.futuresContracts || 0);
     const gateSymbol = normalizeSymbol(payload.pairGate);
     const mexcSymbol = normalizeSymbol(payload.pairMexc);
-    const actionSpot = payload.actionSpot || 'BUY';
-    const mode = payload.mode || 'OPEN';
+    const modes = payload.modes || {};
 
     if (EXCHANGE === 'GATE') {
       await executeGateSpot(spotVolume, {
         symbol: gateSymbol,
-        action: actionSpot,
-        mode
+        modes
       });
     }
 
     if (EXCHANGE === 'MEXC') {
       await executeMexcFutures(futuresContracts, {
         symbol: mexcSymbol,
-        mode
+        modes
       });
     }
   });
@@ -82,22 +80,17 @@
       ) ||
       document.querySelector('input[placeholder*="Quantidade"], input[placeholder*="Amount"]');
     const symbolLabel = (context.symbol || '').toUpperCase();
-    const buyButton =
-      document.querySelector(
-        '#trading_dom > div > div.tab_body > div > div > div:nth-child(7) > button'
-      ) ||
-      document.querySelector(
-        '#trading_dom > div > div.tab_body > div > div > div:nth-child(8) > button'
-      ) ||
-      document.querySelector(
-        '#trading_dom > div > div.tab_body > div > div > div:nth-child(6) > button'
-      ) ||
-      findButtonByText(
-        buildSpotButtonLabels(context.action, symbolLabel),
-        '#trading_dom'
-      );
+    const modes = context.modes || {};
+    const buyButton = findButtonByText(
+      buildSpotButtonLabels(modes.openActionSpot || 'BUY', symbolLabel),
+      '#trading_dom'
+    );
+    const sellButton = findButtonByText(
+      buildSpotButtonLabels(modes.closeActionSpot || 'SELL', symbolLabel),
+      '#trading_dom'
+    );
 
-    if (!qtyInput || !buyButton) {
+    if (!qtyInput) {
       console.warn('[ArbiSync] Ajuste os seletores Gate SPOT');
       return;
     }
@@ -105,7 +98,12 @@
     setNativeValue(qtyInput, String(volume));
     dispatchInputEvents(qtyInput);
     await delay(150);
-    buyButton.click();
+    if (modes.openEnabled && buyButton) {
+      buyButton.click();
+    }
+    if (modes.closeEnabled && sellButton) {
+      sellButton.click();
+    }
   }
 
   async function executeMexcFutures(contracts, context = {}) {
@@ -121,6 +119,10 @@
       document.querySelector(
         '#mexc_contract_v_open_position_info_login > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_shortBtn__x5P3I.component_withColor__LqLhs'
       ) || findButtonByText(['Abrir Short', 'Short']);
+    const closeButton =
+      document.querySelector(
+        '#mexc_contract_v_open_position_info_login > section > div > div:nth-child(2) > div > button'
+      ) || findButtonByText(['Fechar Short', 'Close Short', 'Fechar'], '#mexc_contract_v_open_position_info_login');
 
     if (!qtyInput || !sellButton) {
       console.warn('[ArbiSync] Ajuste os seletores MEXC FUTUROS');
@@ -130,7 +132,12 @@
     setNativeValue(qtyInput, String(contracts));
     dispatchInputEvents(qtyInput);
     await delay(150);
-    sellButton.click();
+    if (context.modes?.openEnabled && sellButton) {
+      sellButton.click();
+    }
+    if (context.modes?.closeEnabled && closeButton) {
+      closeButton.click();
+    }
   }
 
   function setNativeValue(element, value) {

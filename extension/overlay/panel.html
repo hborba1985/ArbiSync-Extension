@@ -83,5 +83,32 @@
 
   <div class="section-title">Execução sincronizada</div>
   <div class="status" id="syncStatus">SYNC: aguardando Tampermonkey</div>
+  <div class="section-title">Modos de execução</div>
+  <div class="field checkbox">
+    <label>
+      <input id="openEnabled" type="checkbox" />
+      Abertura (OPEN)
+    </label>
+  </div>
+  <div class="field">
+    <label for="openActionSpot">Ação SPOT (Abertura)</label>
+    <select id="openActionSpot">
+      <option value="BUY">Comprar</option>
+      <option value="SELL">Vender</option>
+    </select>
+  </div>
+  <div class="field checkbox">
+    <label>
+      <input id="closeEnabled" type="checkbox" />
+      Fechamento (CLOSE)
+    </label>
+  </div>
+  <div class="field">
+    <label for="closeActionSpot">Ação SPOT (Fechamento)</label>
+    <select id="closeActionSpot">
+      <option value="SELL">Vender</option>
+      <option value="BUY">Comprar</option>
+    </select>
+  </div>
   <div class="resizer" aria-hidden="true"></div>
 </div>

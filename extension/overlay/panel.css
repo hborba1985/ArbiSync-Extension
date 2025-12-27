@@ -118,6 +118,23 @@
   color: #ff8a8a;
 }
 
+#arb-panel .liquidity-values {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+#arb-panel .liquidity-value {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+}
+
 #arb-panel .section-title {
   margin-top: 14px;
   font-size: 12px;

@@ -300,6 +300,10 @@ console.log('🧩 content_gate.js carregado');
 
       const liquidityOpen = document.getElementById('liquidityOpen');
       const liquidityClose = document.getElementById('liquidityClose');
+      const gateAskSize = document.getElementById('gateAskSize');
+      const gateBidSize = document.getElementById('gateBidSize');
+      const mexcBidSize = document.getElementById('mexcBidSize');
+      const mexcAskSize = document.getElementById('mexcAskSize');
       const minLiquidity = Number(settings.minLiquidity);
       const hasMinLiquidity = Number.isFinite(minLiquidity) && minLiquidity > 0;
       const formatLiquidity = (value) =>
@@ -308,7 +312,7 @@ console.log('🧩 content_gate.js carregado');
         if (!el) return;
         el.classList.remove('positive', 'negative');
         if (!hasMinLiquidity) {
-          el.textContent = `LIQUIDEZ ${label}: defina mínimo`;
+          el.textContent = `LIQUIDEZ ${label}: sem mínimo`;
           return;
         }
         if (!Number.isFinite(leftSize) || !Number.isFinite(rightSize)) {
@@ -333,6 +337,10 @@ console.log('🧩 content_gate.js carregado');
         data.gateBidSize,
         data.mexcAskSize
       );
+      if (gateAskSize) gateAskSize.textContent = formatLiquidity(data.gateAskSize);
+      if (gateBidSize) gateBidSize.textContent = formatLiquidity(data.gateBidSize);
+      if (mexcBidSize) mexcBidSize.textContent = formatLiquidity(data.mexcBidSize);
+      if (mexcAskSize) mexcAskSize.textContent = formatLiquidity(data.mexcAskSize);
 
       const riskStatus = document.getElementById('riskStatus');
       if (riskStatus) {

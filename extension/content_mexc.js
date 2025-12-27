@@ -276,6 +276,19 @@ console.log('🧩 content_mexc.js carregado');
       if (typeof data.askGate === 'number') setText('askGate', data.askGate.toFixed(11));
       if (typeof data.bidMexc === 'number') setText('bidMexc', data.bidMexc.toFixed(11));
       if (typeof data.spread === 'number') setText('spread', data.spread.toFixed(3) + '%');
+      const spreadOpen = document.getElementById('spreadOpen');
+      const spreadClose = document.getElementById('spreadClose');
+      if (spreadOpen && typeof data.spread === 'number') {
+        spreadOpen.textContent = `${data.spread.toFixed(3)}%`;
+        spreadOpen.classList.toggle('positive', data.spread >= 0);
+        spreadOpen.classList.toggle('negative', data.spread < 0);
+      }
+      if (spreadClose && typeof data.spread === 'number') {
+        const closeSpread = data.spread * -1;
+        spreadClose.textContent = `${closeSpread.toFixed(3)}%`;
+        spreadClose.classList.toggle('positive', closeSpread >= 0);
+        spreadClose.classList.toggle('negative', closeSpread < 0);
+      }
 
       const riskStatus = document.getElementById('riskStatus');
       if (riskStatus) {

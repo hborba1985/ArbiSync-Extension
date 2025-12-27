@@ -259,8 +259,12 @@ console.log('🧩 content_mexc.js carregado');
   window.addEventListener('message', (event) => {
     if (!event?.data || event.data.type !== 'ARBSYNC_ALERT') return;
     const testStatus = document.getElementById('testStatus');
+    const message = event.data.message || 'Falha na execução.';
     if (testStatus) {
-      testStatus.textContent = `TESTE: ${event.data.message}`;
+      testStatus.textContent = `TESTE: ${message}`;
+    }
+    if (window.alert) {
+      window.alert(message);
     }
   });
 

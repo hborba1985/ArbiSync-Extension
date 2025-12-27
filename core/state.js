@@ -2,8 +2,12 @@
 export default {
   askGate: null,
   bidGate: null,
+  gateAskSize: null,
+  gateBidSize: null,
   bidMexc: null,
   askMexc: null,
+  mexcBidSize: null,
+  mexcAskSize: null,
   spread: null,
   signal: false,
   mode: 'READY',
@@ -12,6 +16,7 @@ export default {
   settings: {
     spreadMin: null,
     minVolume: null,
+    minLiquidity: null,
     slippageMax: null,
     maxAlertsPerMinute: null,
     futuresContractSize: null,

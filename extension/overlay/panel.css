@@ -95,6 +95,29 @@
   color: #ff8a8a;
 }
 
+#arb-panel .liquidity-panel {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#arb-panel .liquidity-item {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.08);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+#arb-panel .liquidity-item.positive {
+  color: #6dffb3;
+}
+
+#arb-panel .liquidity-item.negative {
+  color: #ff8a8a;
+}
+
 #arb-panel .section-title {
   margin-top: 14px;
   font-size: 12px;

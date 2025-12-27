@@ -71,6 +71,7 @@ console.log('🧩 content_gate.js carregado');
       'futuresContractSize',
       'spreadMin',
       'minVolume',
+      'minLiquidity',
       'slippageMax',
       'slippageEstimate',
       'maxAlertsPerMinute',
@@ -112,6 +113,7 @@ console.log('🧩 content_gate.js carregado');
       futuresContractSize: readNumber('futuresContractSize'),
       spreadMin: readNumber('spreadMin'),
       minVolume: readNumber('minVolume'),
+      minLiquidity: readNumber('minLiquidity'),
       slippageMax: readNumber('slippageMax'),
       slippageEstimate: readNumber('slippageEstimate'),
       maxAlertsPerMinute: readNumber('maxAlertsPerMinute'),
@@ -272,6 +274,7 @@ console.log('🧩 content_gate.js carregado');
 
     if (msg.type === 'CORE_DATA') {
       const data = msg.data || {};
+      const settings = data.settings || {};
 
       if (typeof data.askGate === 'number') setText('askGate', data.askGate.toFixed(11));
       if (typeof data.bidMexc === 'number') setText('bidMexc', data.bidMexc.toFixed(11));
@@ -294,6 +297,42 @@ console.log('🧩 content_gate.js carregado');
         spreadClose.classList.toggle('positive', closeSpread >= 0);
         spreadClose.classList.toggle('negative', closeSpread < 0);
       }
+
+      const liquidityOpen = document.getElementById('liquidityOpen');
+      const liquidityClose = document.getElementById('liquidityClose');
+      const minLiquidity = Number(settings.minLiquidity);
+      const hasMinLiquidity = Number.isFinite(minLiquidity) && minLiquidity > 0;
+      const formatLiquidity = (value) =>
+        Number.isFinite(value) ? value.toFixed(4) : '--';
+      const setLiquidityStatus = (el, label, leftSize, rightSize) => {
+        if (!el) return;
+        el.classList.remove('positive', 'negative');
+        if (!hasMinLiquidity) {
+          el.textContent = `LIQUIDEZ ${label}: defina mínimo`;
+          return;
+        }
+        if (!Number.isFinite(leftSize) || !Number.isFinite(rightSize)) {
+          el.textContent = `LIQUIDEZ ${label}: aguardando`;
+          return;
+        }
+        const enough = leftSize >= minLiquidity && rightSize >= minLiquidity;
+        el.textContent = `LIQUIDEZ ${label}: ${enough ? 'OK' : 'INSUFICIENTE'} (${formatLiquidity(
+          leftSize
+        )}/${formatLiquidity(rightSize)})`;
+        el.classList.add(enough ? 'positive' : 'negative');
+      };
+      setLiquidityStatus(
+        liquidityOpen,
+        'ENTRADA',
+        data.gateAskSize,
+        data.mexcBidSize
+      );
+      setLiquidityStatus(
+        liquidityClose,
+        'SAÍDA',
+        data.gateBidSize,
+        data.mexcAskSize
+      );
 
       const riskStatus = document.getElementById('riskStatus');
       if (riskStatus) {
@@ -328,7 +367,6 @@ console.log('🧩 content_gate.js carregado');
         panel.classList.toggle('signal', !!data.signal);
       }
 
-      const settings = data.settings || {};
       const updateInput = (id, value) => {
         const input = document.getElementById(id);
         if (!input) return;
@@ -341,6 +379,7 @@ console.log('🧩 content_gate.js carregado');
       updateInput('futuresContractSize', settings.futuresContractSize);
       updateInput('spreadMin', settings.spreadMin);
       updateInput('minVolume', settings.minVolume);
+      updateInput('minLiquidity', settings.minLiquidity);
       updateInput('slippageMax', settings.slippageMax);
       updateInput('slippageEstimate', settings.slippageEstimate);
       updateInput('maxAlertsPerMinute', settings.maxAlertsPerMinute);

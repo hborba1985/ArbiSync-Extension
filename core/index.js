@@ -16,6 +16,7 @@ state.settings = {
   ...state.settings,
   spreadMin: cfg.SPREAD_MIN,
   minVolume: cfg.MIN_VOLUME,
+  minLiquidity: cfg.MIN_LIQUIDITY,
   slippageMax: cfg.SLIPPAGE_MAX,
   maxAlertsPerMinute: cfg.MAX_ALERTS_PER_MINUTE,
   futuresContractSize: cfg.FUTURES_CONTRACT_SIZE,

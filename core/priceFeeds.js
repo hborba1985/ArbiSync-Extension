@@ -45,10 +45,30 @@ function startGateSpot() {
           state.askGate = ask;
         }
       }
+      const rawAskSize =
+        msg.result?.lowest_ask_size ??
+        msg.result?.lowest_ask_qty ??
+        msg.result?.ask_size;
+      if (rawAskSize != null) {
+        const askSize = Number(rawAskSize);
+        if (!Number.isNaN(askSize)) {
+          state.gateAskSize = askSize;
+        }
+      }
       if (msg.result?.highest_bid) {
         const bid = Number(msg.result.highest_bid);
         if (!Number.isNaN(bid)) {
           state.bidGate = bid;
+        }
+      }
+      const rawBidSize =
+        msg.result?.highest_bid_size ??
+        msg.result?.highest_bid_qty ??
+        msg.result?.bid_size;
+      if (rawBidSize != null) {
+        const bidSize = Number(rawBidSize);
+        if (!Number.isNaN(bidSize)) {
+          state.gateBidSize = bidSize;
         }
       }
     } catch (err) {
@@ -99,11 +119,33 @@ function startMexcFutures() {
           state.bidMexc = bid;
         }
       }
+      const rawBidSize =
+        msg?.data?.bidSize ??
+        msg?.data?.bid1Size ??
+        msg?.data?.bidVol ??
+        msg?.data?.bidQty;
+      if (rawBidSize != null) {
+        const bidSize = Number(rawBidSize);
+        if (!Number.isNaN(bidSize)) {
+          state.mexcBidSize = bidSize;
+        }
+      }
       const rawAsk = msg?.data?.ask ?? msg?.data?.ask1;
       if (rawAsk != null) {
         const ask = Number(rawAsk);
         if (!Number.isNaN(ask)) {
           state.askMexc = ask;
+        }
+      }
+      const rawAskSize =
+        msg?.data?.askSize ??
+        msg?.data?.ask1Size ??
+        msg?.data?.askVol ??
+        msg?.data?.askQty;
+      if (rawAskSize != null) {
+        const askSize = Number(rawAskSize);
+        if (!Number.isNaN(askSize)) {
+          state.mexcAskSize = askSize;
         }
       }
     } catch (err) {

@@ -8,6 +8,7 @@ export default {
 
   ORDER_VOLUME: 50,
   MIN_VOLUME: 10,
+  MIN_LIQUIDITY: 50,
   SLIPPAGE_MAX: 0.15,       // Percentual máximo de slippage permitido
   MAX_ALERTS_PER_MINUTE: 6,
   FUTURES_CONTRACT_SIZE: 1,

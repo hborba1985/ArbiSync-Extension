@@ -72,8 +72,12 @@
       document.querySelector('input[placeholder*="Quantidade"], input[placeholder*="Amount"]');
     const buyButton =
       document.querySelector(
+        '#trading_dom > div > div.tab_body > div > div > div:nth-child(8) > button'
+      ) ||
+      document.querySelector(
         '#trading_dom > div > div.tab_body > div > div > div:nth-child(6) > button'
-      ) || findButtonByText(['Compra', 'Comprar', 'Buy'], '#trading_dom');
+      ) ||
+      findButtonByText(['Compra', 'Comprar', 'Buy'], '#trading_dom');
 
     if (!qtyInput || !buyButton) {
       console.warn('[ArbiSync] Ajuste os seletores Gate SPOT');

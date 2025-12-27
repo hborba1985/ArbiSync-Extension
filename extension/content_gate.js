@@ -94,16 +94,12 @@ console.log('🧩 content_gate.js carregado');
     }
     const openEnabled = document.getElementById('openEnabled');
     const closeEnabled = document.getElementById('closeEnabled');
-    const openActionSpot = document.getElementById('openActionSpot');
-    const closeActionSpot = document.getElementById('closeActionSpot');
-    [openEnabled, closeEnabled, openActionSpot, closeActionSpot].forEach(
-      (el) => {
-        if (!el) return;
-        el.addEventListener('change', () => {
-          el.dataset.userEdited = 'true';
-        });
-      }
-    );
+    [openEnabled, closeEnabled].forEach((el) => {
+      if (!el) return;
+      el.addEventListener('change', () => {
+        el.dataset.userEdited = 'true';
+      });
+    });
     const readNumber = (id) => {
       const input = document.getElementById(id);
       if (!input) return null;
@@ -128,9 +124,7 @@ console.log('🧩 content_gate.js carregado');
       enableLiveExecution: false,
       executionModes: {
         openEnabled: openEnabled?.checked ?? true,
-        closeEnabled: closeEnabled?.checked ?? false,
-        openActionSpot: openActionSpot?.value || 'BUY',
-        closeActionSpot: closeActionSpot?.value || 'SELL'
+        closeEnabled: closeEnabled?.checked ?? false
       }
     });
 
@@ -351,12 +345,6 @@ console.log('🧩 content_gate.js carregado');
         }
         if (closeEnabled && closeEnabled.dataset.userEdited !== 'true') {
           closeEnabled.checked = !!settings.executionModes.closeEnabled;
-        }
-        if (openActionSpot && openActionSpot.dataset.userEdited !== 'true') {
-          openActionSpot.value = settings.executionModes.openActionSpot || 'BUY';
-        }
-        if (closeActionSpot && closeActionSpot.dataset.userEdited !== 'true') {
-          closeActionSpot.value = settings.executionModes.closeActionSpot || 'SELL';
         }
       }
     }

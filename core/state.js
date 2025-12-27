@@ -23,9 +23,7 @@ export default {
     enableLiveExecution: false,
     executionModes: {
       openEnabled: true,
-      closeEnabled: false,
-      openActionSpot: 'BUY',
-      closeActionSpot: 'SELL'
+      closeEnabled: false
     }
   }
 };

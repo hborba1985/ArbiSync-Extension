@@ -90,12 +90,12 @@
     const symbolLabel = (context.symbol || '').toUpperCase();
     const modes = context.modes || {};
     const buyButton = findButtonByText(
-      buildSpotButtonLabels(modes.openActionSpot || 'BUY', symbolLabel),
+      buildSpotButtonLabels('BUY', symbolLabel),
       '#trading_dom',
       { skipTabs: true }
     );
     const sellButton = findButtonByText(
-      buildSpotButtonLabels(modes.closeActionSpot || 'SELL', symbolLabel),
+      buildSpotButtonLabels('SELL', symbolLabel),
       '#trading_dom',
       { skipTabs: true }
     );
@@ -108,14 +108,8 @@
     setNativeValue(qtyInput, String(volume));
     dispatchInputEvents(qtyInput);
     await delay(150);
-    const actionLabel = buildSpotButtonLabels(
-      modes.openActionSpot || 'BUY',
-      symbolLabel
-    );
-    const closeLabel = buildSpotButtonLabels(
-      modes.closeActionSpot || 'SELL',
-      symbolLabel
-    );
+    const actionLabel = buildSpotButtonLabels('BUY', symbolLabel);
+    const closeLabel = buildSpotButtonLabels('SELL', symbolLabel);
     const gateButtons = findGateSubmitButtons();
     const buyMatch = gateButtons.find((btn) =>
       actionLabel.some((label) =>

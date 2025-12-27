@@ -1,0 +1,223 @@
+// ==UserScript==
+// @name         ArbiSync - Execução sincronizada (SPOT/FUTUROS)
+// @namespace    https://arbsync.local/
+// @version      0.1.0
+// @description  Executa ordens simultâneas em SPOT e FUTUROS via automação na página.
+// @author       ArbiSync
+// @match        https://www.gate.io/* 
+// @match        https://www.gate.com/*
+// @match        https://www.mexc.com/* 
+// @grant        none
+// ==/UserScript==
+
+(function () {
+  'use strict';
+
+  const EXCHANGE = detectExchange();
+
+  if (!EXCHANGE) {
+    return;
+  }
+
+  window.postMessage(
+    { type: 'ARBSYNC_SYNC_READY', exchange: EXCHANGE },
+    '*'
+  );
+
+  window.addEventListener('message', async (event) => {
+    if (!event?.data || event.data.type !== 'ARBSYNC_TEST_EXECUTION') return;
+
+    const payload = event.data.payload || {};
+    const spotVolume = Number(payload.spotVolume || 0);
+    const futuresContracts = Number(payload.futuresContracts || 0);
+    const gateSymbol = normalizeSymbol(payload.pairGate);
+    const mexcSymbol = normalizeSymbol(payload.pairMexc);
+    const modes = payload.modes || {};
+
+    if (EXCHANGE === 'GATE') {
+      await executeGateSpot(spotVolume, {
+        symbol: gateSymbol,
+        modes
+      });
+    }
+
+    if (EXCHANGE === 'MEXC') {
+      await executeMexcFutures(futuresContracts, {
+        symbol: mexcSymbol,
+        modes
+      });
+    }
+  });
+
+  function detectExchange() {
+    const host = window.location.host;
+    if (host.includes('gate.io') || host.includes('gate.com')) return 'GATE';
+    if (host.includes('mexc.com')) return 'MEXC';
+    return null;
+  }
+
+  function findButtonByText(labels, scopeSelector, { skipTabs = false } = {}) {
+    const scope = scopeSelector
+      ? document.querySelector(scopeSelector)
+      : document;
+    if (!scope) return null;
+    const buttons = Array.from(scope.querySelectorAll('button'));
+    return buttons.find((btn) => {
+      if (skipTabs && isTabButton(btn)) return false;
+      return labels.some((label) => btn.textContent?.trim().includes(label));
+    });
+  }
+
+  function isTabButton(button) {
+    if (!button) return false;
+    if (button.getAttribute('role') === 'tab') return true;
+    if (button.closest('[role="tablist"]')) return true;
+    return Boolean(button.closest('[class*="tab"]'));
+  }
+
+  async function executeGateSpot(volume, context = {}) {
+    if (!volume) {
+      console.warn('[ArbiSync] Volume SPOT inválido');
+      return;
+    }
+
+    const qtyInput =
+      document.querySelector('#mantine-0l3yrzgvy') ||
+      document.querySelector(
+        '#trading_dom input[inputmode="decimal"], #trading_dom input[type="text"][inputmode="decimal"]'
+      ) ||
+      document.querySelector('input[placeholder*="Quantidade"], input[placeholder*="Amount"]');
+    const symbolLabel = (context.symbol || '').toUpperCase();
+    const modes = context.modes || {};
+    const buyButton = findButtonByText(
+      buildSpotButtonLabels('BUY', symbolLabel),
+      '#trading_dom',
+      { skipTabs: true }
+    );
+    const sellButton = findButtonByText(
+      buildSpotButtonLabels('SELL', symbolLabel),
+      '#trading_dom',
+      { skipTabs: true }
+    );
+
+    if (!qtyInput) {
+      console.warn('[ArbiSync] Ajuste os seletores Gate SPOT');
+      return;
+    }
+
+    setNativeValue(qtyInput, String(volume));
+    dispatchInputEvents(qtyInput);
+    await delay(150);
+    const actionLabel = buildSpotButtonLabels('BUY', symbolLabel);
+    const closeLabel = buildSpotButtonLabels('SELL', symbolLabel);
+    const gateButtons = findGateSubmitButtons();
+    const buyMatch = gateButtons.find((btn) =>
+      actionLabel.some((label) =>
+        btn.textContent?.trim().includes(label)
+      )
+    );
+    const sellMatch = gateButtons.find((btn) =>
+      closeLabel.some((label) =>
+        btn.textContent?.trim().includes(label)
+      )
+    );
+
+    if (modes.openEnabled && buyMatch) {
+      buyMatch.click();
+    }
+    if (modes.openEnabled && !buyMatch) {
+      sendAlert('Não encontrei "Compra". Verifique se a aba Compra está ativa.');
+    }
+    if (modes.closeEnabled && sellMatch) {
+      sellMatch.click();
+    }
+    if (modes.closeEnabled && !sellMatch) {
+      sendAlert('Não encontrei "Venda". Verifique se a aba Venda está ativa.');
+    }
+  }
+
+  async function executeMexcFutures(contracts, context = {}) {
+    if (!contracts) {
+      console.warn('[ArbiSync] Contratos FUTUROS inválidos');
+      return;
+    }
+
+    const qtyInput = document.querySelector(
+      '#mexc_contract_v_open_position > div > div.component_inputWrapper__LP4Dm > div.component_numberInput__PF7Vf > div > div.InputNumberHandle_inputOuterWrapper__8w_l1 > div > div > input, input[placeholder*="Quantidade"], input[placeholder*="Qty"]'
+    );
+    const sellButton =
+      document.querySelector(
+        '#mexc_contract_v_open_position_info_login > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_shortBtn__x5P3I.component_withColor__LqLhs'
+      ) || findButtonByText(['Abrir Short', 'Short', 'Abrir'], '#mexc_contract_v_open_position_info_login');
+    const closeButton =
+      document.querySelector(
+        '#mexc_contract_v_open_position_info_login > section > div > div:nth-child(2) > div > button'
+      ) || findButtonByText(['Fechar Short', 'Fechar Long', 'Fechar'], '#mexc_contract_v_open_position_info_login');
+
+    if (!qtyInput || !sellButton) {
+      console.warn('[ArbiSync] Ajuste os seletores MEXC FUTUROS');
+      return;
+    }
+
+    setNativeValue(qtyInput, String(contracts));
+    dispatchInputEvents(qtyInput);
+    await delay(150);
+    if (context.modes?.openEnabled && sellButton) {
+      sellButton.click();
+    }
+    if (context.modes?.closeEnabled && closeButton) {
+      closeButton.click();
+    }
+  }
+
+  function setNativeValue(element, value) {
+    const { set } = Object.getOwnPropertyDescriptor(element, 'value') || {};
+    const prototype = Object.getPrototypeOf(element);
+    const { set: prototypeSet } = Object.getOwnPropertyDescriptor(
+      prototype,
+      'value'
+    ) || {};
+    if (prototypeSet) {
+      prototypeSet.call(element, value);
+    } else if (set) {
+      set.call(element, value);
+    } else {
+      element.value = value;
+    }
+  }
+
+  function dispatchInputEvents(element) {
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+    element.dispatchEvent(new KeyboardEvent('keyup', { bubbles: true, key: '0' }));
+  }
+
+  function delay(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function sendAlert(message) {
+    window.postMessage({ type: 'ARBSYNC_ALERT', message }, '*');
+    console.warn('[ArbiSync]', message);
+  }
+
+  function findGateSubmitButtons() {
+    return Array.from(
+      document.querySelectorAll(
+        '#trading_dom button[data-testid="tr-submit-btn"]'
+      )
+    );
+  }
+
+  function normalizeSymbol(symbol) {
+    if (!symbol) return '';
+    return symbol.split('_')[0] || symbol.split('/')[0] || symbol;
+  }
+
+  function buildSpotButtonLabels(action, symbolLabel) {
+    const verb = action === 'SELL' ? 'Venda' : 'Compra';
+    const fallback = action === 'SELL' ? 'Sell' : 'Buy';
+    if (!symbolLabel) return [verb, fallback];
+    return [`${verb} ${symbolLabel}`, verb, `${fallback} ${symbolLabel}`, fallback];
+  }
+})();

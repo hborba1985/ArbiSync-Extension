@@ -72,3 +72,14 @@ connectWs();
 
 chrome.runtime.onStartup.addListener(() => connectWs());
 chrome.runtime.onInstalled.addListener(() => connectWs());
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (!message || message.type !== 'UI_COMMAND') return;
+
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: 'COMMAND', command: message.command }));
+    sendResponse({ ok: true });
+  } else {
+    sendResponse({ ok: false, error: 'CORE_WS_OFFLINE' });
+  }
+});

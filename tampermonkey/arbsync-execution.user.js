@@ -72,6 +72,9 @@
       document.querySelector('input[placeholder*="Quantidade"], input[placeholder*="Amount"]');
     const buyButton =
       document.querySelector(
+        '#trading_dom > div > div.tab_body > div > div > div:nth-child(7) > button'
+      ) ||
+      document.querySelector(
         '#trading_dom > div > div.tab_body > div > div > div:nth-child(8) > button'
       ) ||
       document.querySelector(

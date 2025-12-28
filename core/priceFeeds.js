@@ -32,6 +32,18 @@ function normalizeBookSize(entry) {
   return Number(entry);
 }
 
+function normalizeMexcDepthQuantity(entry) {
+  if (entry == null) return null;
+  if (Array.isArray(entry)) {
+    if (entry.length >= 3) return Number(entry[2]);
+    return Number(entry[1]);
+  }
+  if (typeof entry === 'object') {
+    return Number(entry.quantity ?? entry.qty ?? entry.size ?? entry.q);
+  }
+  return Number(entry);
+}
+
 function normalizeFuturesSize(size) {
   const contractSize =
     state.settings?.futuresContractSize ?? cfg.FUTURES_CONTRACT_SIZE;
@@ -207,12 +219,12 @@ function startMexcFutures() {
       }
 
       if (msg?.data?.asks || msg?.data?.bids) {
-        const depthAskBase = normalizeBookSize(msg.data?.asks?.[0]);
+        const depthAskBase = normalizeMexcDepthQuantity(msg.data?.asks?.[0]);
         const depthAskSize = normalizeFuturesSize(depthAskBase);
         if (!Number.isNaN(depthAskSize)) {
           state.mexcAskSize = depthAskSize;
         }
-        const depthBidBase = normalizeBookSize(msg.data?.bids?.[0]);
+        const depthBidBase = normalizeMexcDepthQuantity(msg.data?.bids?.[0]);
         const depthBidSize = normalizeFuturesSize(depthBidBase);
         if (!Number.isNaN(depthBidSize)) {
           state.mexcBidSize = depthBidSize;

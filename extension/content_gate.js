@@ -42,6 +42,7 @@ console.log('🧩 content_gate.js carregado');
         setupActions();
         setupDrag();
         setupResize();
+        startDomLiquidityPolling();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -236,6 +237,65 @@ console.log('🧩 content_gate.js carregado');
       resizing = false;
       document.body.style.userSelect = '';
     });
+  }
+
+  function parseNumber(value) {
+    if (value == null) return null;
+    const cleaned = String(value)
+      .replace(/[^\d.,-]/g, '')
+      .replace(/\.(?=.*\.)/g, '')
+      .replace(',', '.');
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function startDomLiquidityPolling() {
+    const selectors = {
+      askPrice:
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.bBfmlX',
+      askVolume:
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE',
+      bidPrice:
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.khGgGv',
+      bidVolume:
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE'
+    };
+
+    const updateFromDom = () => {
+      const askPrice = parseNumber(
+        document.querySelector(selectors.askPrice)?.textContent
+      );
+      const askVolume = parseNumber(
+        document.querySelector(selectors.askVolume)?.textContent
+      );
+      const bidPrice = parseNumber(
+        document.querySelector(selectors.bidPrice)?.textContent
+      );
+      const bidVolume = parseNumber(
+        document.querySelector(selectors.bidVolume)?.textContent
+      );
+
+      if (Number.isFinite(askPrice)) {
+        setText('askGate', askPrice.toFixed(11));
+        const askPriceEl = document.getElementById('gateAskPrice');
+        if (askPriceEl) askPriceEl.textContent = askPrice.toFixed(11);
+      }
+      if (Number.isFinite(bidPrice)) {
+        const bidEl = document.getElementById('gateBidPrice');
+        if (bidEl) bidEl.textContent = bidPrice.toFixed(11);
+      }
+      if (Number.isFinite(askVolume)) {
+        const askVolEl = document.getElementById('gateAskSize');
+        if (askVolEl) askVolEl.textContent = askVolume.toFixed(4);
+      }
+      if (Number.isFinite(bidVolume)) {
+        const bidVolEl = document.getElementById('gateBidSize');
+        if (bidVolEl) bidVolEl.textContent = bidVolume.toFixed(4);
+      }
+    };
+
+    updateFromDom();
+    setInterval(updateFromDom, 1000);
   }
 
   if (document.readyState === 'loading') {

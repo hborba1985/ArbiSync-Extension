@@ -42,6 +42,7 @@ console.log('🧩 content_mexc.js carregado');
         setupActions();
         setupDrag();
         setupResize();
+        startDomLiquidityPolling();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -236,6 +237,65 @@ console.log('🧩 content_mexc.js carregado');
       resizing = false;
       document.body.style.userSelect = '';
     });
+  }
+
+  function parseNumber(value) {
+    if (value == null) return null;
+    const cleaned = String(value)
+      .replace(/[^\d.,-]/g, '')
+      .replace(/\.(?=.*\.)/g, '')
+      .replace(',', '.');
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function startDomLiquidityPolling() {
+    const selectors = {
+      askPrice:
+        '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_asksWrapper__JH8bn > div:nth-child(1) > div:nth-child(9) > div.market_price__V_09X.market_sell__SZ_It > span',
+      askVolume:
+        '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_asksWrapper__JH8bn > div:nth-child(1) > div:nth-child(9) > div.market_vol__M6Ton',
+      bidPrice:
+        '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_bidsWrapper__lt6yB > div:nth-child(1) > div:nth-child(1) > div.market_price__V_09X.market_buy__F9O7S > span',
+      bidVolume:
+        '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_bidsWrapper__lt6yB > div:nth-child(1) > div:nth-child(1) > div.market_vol__M6Ton'
+    };
+
+    const updateFromDom = () => {
+      const askPrice = parseNumber(
+        document.querySelector(selectors.askPrice)?.textContent
+      );
+      const askVolume = parseNumber(
+        document.querySelector(selectors.askVolume)?.textContent
+      );
+      const bidPrice = parseNumber(
+        document.querySelector(selectors.bidPrice)?.textContent
+      );
+      const bidVolume = parseNumber(
+        document.querySelector(selectors.bidVolume)?.textContent
+      );
+
+      if (Number.isFinite(bidPrice)) {
+        setText('bidMexc', bidPrice.toFixed(11));
+        const bidPriceEl = document.getElementById('mexcBidPrice');
+        if (bidPriceEl) bidPriceEl.textContent = bidPrice.toFixed(11);
+      }
+      if (Number.isFinite(askPrice)) {
+        const askPriceEl = document.getElementById('mexcAskPrice');
+        if (askPriceEl) askPriceEl.textContent = askPrice.toFixed(11);
+      }
+      if (Number.isFinite(bidVolume)) {
+        const bidVolEl = document.getElementById('mexcBidSize');
+        if (bidVolEl) bidVolEl.textContent = bidVolume.toFixed(4);
+      }
+      if (Number.isFinite(askVolume)) {
+        const askVolEl = document.getElementById('mexcAskSize');
+        if (askVolEl) askVolEl.textContent = askVolume.toFixed(4);
+      }
+    };
+
+    updateFromDom();
+    setInterval(updateFromDom, 1000);
   }
 
   if (document.readyState === 'loading') {

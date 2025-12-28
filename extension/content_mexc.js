@@ -248,12 +248,19 @@ console.log('🧩 content_mexc.js carregado');
 
   function parseNumber(value) {
     if (value == null) return null;
-    const cleaned = String(value)
-      .replace(/[^\d.,-]/g, '')
-      .replace(/\.(?=.*\.)/g, '')
-      .replace(',', '.');
+    let cleaned = String(value).replace(/[^\d.,kKmM-]/g, '');
+    let multiplier = 1;
+    const suffix = cleaned.slice(-1).toLowerCase();
+    if (suffix === 'k') {
+      multiplier = 1000;
+      cleaned = cleaned.slice(0, -1);
+    } else if (suffix === 'm') {
+      multiplier = 1_000_000;
+      cleaned = cleaned.slice(0, -1);
+    }
+    cleaned = cleaned.replace(/\.(?=.*\.)/g, '').replace(',', '.');
     const parsed = Number(cleaned);
-    return Number.isFinite(parsed) ? parsed : null;
+    return Number.isFinite(parsed) ? parsed * multiplier : null;
   }
 
   function startDomLiquidityPolling() {

@@ -4,6 +4,7 @@ console.log('🧩 content_gate.js carregado');
 
 (function () {
   const OVERLAY_ID = 'arb-assistant-overlay-wrapper';
+  let lastDomBookUpdate = 0;
 
   function ensureOverlay() {
     if (document.getElementById(OVERLAY_ID)) return;
@@ -281,21 +282,25 @@ console.log('🧩 content_gate.js carregado');
         const askPriceEl = document.getElementById('gateAskPrice');
         if (askPriceEl) askPriceEl.textContent = askPrice.toFixed(11);
         last.askPrice = askPrice;
+        lastDomBookUpdate = Date.now();
       }
       if (Number.isFinite(bidPrice)) {
         const bidEl = document.getElementById('gateBidPrice');
         if (bidEl) bidEl.textContent = bidPrice.toFixed(11);
         last.bidPrice = bidPrice;
+        lastDomBookUpdate = Date.now();
       }
       if (Number.isFinite(askVolume)) {
         const askVolEl = document.getElementById('gateAskSize');
         if (askVolEl) askVolEl.textContent = askVolume.toFixed(4);
         last.askVolume = askVolume;
+        lastDomBookUpdate = Date.now();
       }
       if (Number.isFinite(bidVolume)) {
         const bidVolEl = document.getElementById('gateBidSize');
         if (bidVolEl) bidVolEl.textContent = bidVolume.toFixed(4);
         last.bidVolume = bidVolume;
+        lastDomBookUpdate = Date.now();
       }
     };
 
@@ -455,29 +460,32 @@ console.log('🧩 content_gate.js carregado');
         gateBidQty,
         mexcAskQty
       );
-      if (gateAskSize && Number.isFinite(gateAskQty)) {
-        gateAskSize.textContent = formatLiquidity(gateAskQty);
-      }
-      if (gateBidSize && Number.isFinite(gateBidQty)) {
-        gateBidSize.textContent = formatLiquidity(gateBidQty);
-      }
-      if (mexcBidSize && Number.isFinite(mexcBidQty)) {
-        mexcBidSize.textContent = formatLiquidity(mexcBidQty);
-      }
-      if (mexcAskSize && Number.isFinite(mexcAskQty)) {
-        mexcAskSize.textContent = formatLiquidity(mexcAskQty);
-      }
-      if (gateAskPrice && Number.isFinite(gateAskPx)) {
-        gateAskPrice.textContent = formatPrice(gateAskPx);
-      }
-      if (gateBidPrice && Number.isFinite(gateBidPx)) {
-        gateBidPrice.textContent = formatPrice(gateBidPx);
-      }
-      if (mexcBidPrice && Number.isFinite(mexcBidPx)) {
-        mexcBidPrice.textContent = formatPrice(mexcBidPx);
-      }
-      if (mexcAskPrice && Number.isFinite(mexcAskPx)) {
-        mexcAskPrice.textContent = formatPrice(mexcAskPx);
+      const domFresh = Date.now() - lastDomBookUpdate < 3000;
+      if (!domFresh) {
+        if (gateAskSize && Number.isFinite(gateAskQty)) {
+          gateAskSize.textContent = formatLiquidity(gateAskQty);
+        }
+        if (gateBidSize && Number.isFinite(gateBidQty)) {
+          gateBidSize.textContent = formatLiquidity(gateBidQty);
+        }
+        if (mexcBidSize && Number.isFinite(mexcBidQty)) {
+          mexcBidSize.textContent = formatLiquidity(mexcBidQty);
+        }
+        if (mexcAskSize && Number.isFinite(mexcAskQty)) {
+          mexcAskSize.textContent = formatLiquidity(mexcAskQty);
+        }
+        if (gateAskPrice && Number.isFinite(gateAskPx)) {
+          gateAskPrice.textContent = formatPrice(gateAskPx);
+        }
+        if (gateBidPrice && Number.isFinite(gateBidPx)) {
+          gateBidPrice.textContent = formatPrice(gateBidPx);
+        }
+        if (mexcBidPrice && Number.isFinite(mexcBidPx)) {
+          mexcBidPrice.textContent = formatPrice(mexcBidPx);
+        }
+        if (mexcAskPrice && Number.isFinite(mexcAskPx)) {
+          mexcAskPrice.textContent = formatPrice(mexcAskPx);
+        }
       }
 
       const riskStatus = document.getElementById('riskStatus');
@@ -568,15 +576,19 @@ console.log('🧩 content_gate.js carregado');
 
       if (mexcAskPrice && Number.isFinite(askPrice)) {
         mexcAskPrice.textContent = askPrice.toFixed(11);
+        lastDomBookUpdate = Date.now();
       }
       if (mexcBidPrice && Number.isFinite(bidPrice)) {
         mexcBidPrice.textContent = bidPrice.toFixed(11);
+        lastDomBookUpdate = Date.now();
       }
       if (mexcAskSize && Number.isFinite(askVolume)) {
         mexcAskSize.textContent = askVolume.toFixed(4);
+        lastDomBookUpdate = Date.now();
       }
       if (mexcBidSize && Number.isFinite(bidVolume)) {
         mexcBidSize.textContent = bidVolume.toFixed(4);
+        lastDomBookUpdate = Date.now();
       }
     }
   });

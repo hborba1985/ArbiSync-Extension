@@ -4,6 +4,7 @@ console.log('🧩 content_mexc.js carregado');
 
 (function () {
   const OVERLAY_ID = 'arb-assistant-overlay-wrapper';
+  let lastDomBookUpdate = 0;
 
   function ensureOverlay() {
     if (document.getElementById(OVERLAY_ID)) return;
@@ -281,21 +282,25 @@ console.log('🧩 content_mexc.js carregado');
         const bidPriceEl = document.getElementById('mexcBidPrice');
         if (bidPriceEl) bidPriceEl.textContent = bidPrice.toFixed(11);
         last.bidPrice = bidPrice;
+        lastDomBookUpdate = Date.now();
       }
       if (Number.isFinite(askPrice)) {
         const askPriceEl = document.getElementById('mexcAskPrice');
         if (askPriceEl) askPriceEl.textContent = askPrice.toFixed(11);
         last.askPrice = askPrice;
+        lastDomBookUpdate = Date.now();
       }
       if (Number.isFinite(bidVolume)) {
         const bidVolEl = document.getElementById('mexcBidSize');
         if (bidVolEl) bidVolEl.textContent = bidVolume.toFixed(4);
         last.bidVolume = bidVolume;
+        lastDomBookUpdate = Date.now();
       }
       if (Number.isFinite(askVolume)) {
         const askVolEl = document.getElementById('mexcAskSize');
         if (askVolEl) askVolEl.textContent = askVolume.toFixed(4);
         last.askVolume = askVolume;
+        lastDomBookUpdate = Date.now();
       }
     };
 
@@ -455,29 +460,32 @@ console.log('🧩 content_mexc.js carregado');
         gateBidQty,
         mexcAskQty
       );
-      if (gateAskSize && Number.isFinite(gateAskQty)) {
-        gateAskSize.textContent = formatLiquidity(gateAskQty);
-      }
-      if (gateBidSize && Number.isFinite(gateBidQty)) {
-        gateBidSize.textContent = formatLiquidity(gateBidQty);
-      }
-      if (mexcBidSize && Number.isFinite(mexcBidQty)) {
-        mexcBidSize.textContent = formatLiquidity(mexcBidQty);
-      }
-      if (mexcAskSize && Number.isFinite(mexcAskQty)) {
-        mexcAskSize.textContent = formatLiquidity(mexcAskQty);
-      }
-      if (gateAskPrice && Number.isFinite(gateAskPx)) {
-        gateAskPrice.textContent = formatPrice(gateAskPx);
-      }
-      if (gateBidPrice && Number.isFinite(gateBidPx)) {
-        gateBidPrice.textContent = formatPrice(gateBidPx);
-      }
-      if (mexcBidPrice && Number.isFinite(mexcBidPx)) {
-        mexcBidPrice.textContent = formatPrice(mexcBidPx);
-      }
-      if (mexcAskPrice && Number.isFinite(mexcAskPx)) {
-        mexcAskPrice.textContent = formatPrice(mexcAskPx);
+      const domFresh = Date.now() - lastDomBookUpdate < 3000;
+      if (!domFresh) {
+        if (gateAskSize && Number.isFinite(gateAskQty)) {
+          gateAskSize.textContent = formatLiquidity(gateAskQty);
+        }
+        if (gateBidSize && Number.isFinite(gateBidQty)) {
+          gateBidSize.textContent = formatLiquidity(gateBidQty);
+        }
+        if (mexcBidSize && Number.isFinite(mexcBidQty)) {
+          mexcBidSize.textContent = formatLiquidity(mexcBidQty);
+        }
+        if (mexcAskSize && Number.isFinite(mexcAskQty)) {
+          mexcAskSize.textContent = formatLiquidity(mexcAskQty);
+        }
+        if (gateAskPrice && Number.isFinite(gateAskPx)) {
+          gateAskPrice.textContent = formatPrice(gateAskPx);
+        }
+        if (gateBidPrice && Number.isFinite(gateBidPx)) {
+          gateBidPrice.textContent = formatPrice(gateBidPx);
+        }
+        if (mexcBidPrice && Number.isFinite(mexcBidPx)) {
+          mexcBidPrice.textContent = formatPrice(mexcBidPx);
+        }
+        if (mexcAskPrice && Number.isFinite(mexcAskPx)) {
+          mexcAskPrice.textContent = formatPrice(mexcAskPx);
+        }
       }
 
       const riskStatus = document.getElementById('riskStatus');
@@ -568,15 +576,19 @@ console.log('🧩 content_mexc.js carregado');
 
       if (gateAskPrice && Number.isFinite(askPrice)) {
         gateAskPrice.textContent = askPrice.toFixed(11);
+        lastDomBookUpdate = Date.now();
       }
       if (gateBidPrice && Number.isFinite(bidPrice)) {
         gateBidPrice.textContent = bidPrice.toFixed(11);
+        lastDomBookUpdate = Date.now();
       }
       if (gateAskSize && Number.isFinite(askVolume)) {
         gateAskSize.textContent = askVolume.toFixed(4);
+        lastDomBookUpdate = Date.now();
       }
       if (gateBidSize && Number.isFinite(bidVolume)) {
         gateBidSize.textContent = bidVolume.toFixed(4);
+        lastDomBookUpdate = Date.now();
       }
     }
   });

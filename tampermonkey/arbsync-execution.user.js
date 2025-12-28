@@ -110,29 +110,37 @@
     await delay(150);
     const actionLabel = buildSpotButtonLabels('BUY', symbolLabel);
     const closeLabel = buildSpotButtonLabels('SELL', symbolLabel);
-    const gateButtons = findGateSubmitButtons();
-    const buyMatch = gateButtons.find((btn) =>
-      actionLabel.some((label) =>
-        btn.textContent?.trim().includes(label)
-      )
-    );
-    const sellMatch = gateButtons.find((btn) =>
-      closeLabel.some((label) =>
-        btn.textContent?.trim().includes(label)
-      )
-    );
+
+    const findGateMatch = (labels) => {
+      const gateButtons = findGateSubmitButtons();
+      return gateButtons.find((btn) =>
+        labels.some((label) => btn.textContent?.trim().includes(label))
+      );
+    };
+
+    let buyMatch = findGateMatch(actionLabel);
+    let sellMatch = findGateMatch(closeLabel);
+
+    if (modes.openEnabled && !buyMatch) {
+      await activateGateTab('buy');
+      buyMatch = findGateMatch(actionLabel);
+    }
+    if (modes.closeEnabled && !sellMatch) {
+      await activateGateTab('sell');
+      sellMatch = findGateMatch(closeLabel);
+    }
 
     if (modes.openEnabled && buyMatch) {
       buyMatch.click();
     }
     if (modes.openEnabled && !buyMatch) {
-      sendAlert('Não encontrei "Compra". Verifique se a aba Compra está ativa.');
+      sendAlert('Não encontrei "Compra". Verifique os botões da Gate.');
     }
     if (modes.closeEnabled && sellMatch) {
       sellMatch.click();
     }
     if (modes.closeEnabled && !sellMatch) {
-      sendAlert('Não encontrei "Venda". Verifique se a aba Venda está ativa.');
+      sendAlert('Não encontrei "Venda". Verifique os botões da Gate.');
     }
   }
 
@@ -219,6 +227,15 @@
         '#trading_dom button[data-testid="tr-submit-btn"]'
       )
     );
+  }
+
+  async function activateGateTab(tab) {
+    const selector = tab === 'sell' ? '#tab-sell' : '#tab-buy';
+    const button = document.querySelector(selector);
+    if (button) {
+      button.click();
+      await delay(150);
+    }
   }
 
   function normalizeSymbol(symbol) {

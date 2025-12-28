@@ -265,10 +265,18 @@ console.log('🧩 content_mexc.js carregado');
 
   function startDomLiquidityPolling() {
     const selectors = {
-      askPrice:
+      askPriceCandidates: [
+        '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_asksWrapper__JH8bn > div:nth-child(1) > div:nth-child(14) > div.market_price__V_09X.market_sell__SZ_It > span',
+        '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_asksWrapper__JH8bn > div:nth-child(1) > div:nth-child(12) > div.market_price__V_09X.market_sell__SZ_It > span',
         '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_asksWrapper__JH8bn > div:nth-child(1) > div:nth-child(9) > div.market_price__V_09X.market_sell__SZ_It > span',
-      askVolume:
+        '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_asksWrapper__JH8bn > div:nth-child(1) > div:nth-child(3) > div.market_price__V_09X.market_sell__SZ_It > span'
+      ],
+      askVolumeCandidates: [
+        '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_asksWrapper__JH8bn > div:nth-child(1) > div:nth-child(14) > div.market_vol__M6Ton',
+        '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_asksWrapper__JH8bn > div:nth-child(1) > div:nth-child(12) > div.market_vol__M6Ton',
         '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_asksWrapper__JH8bn > div:nth-child(1) > div:nth-child(9) > div.market_vol__M6Ton',
+        '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_asksWrapper__JH8bn > div:nth-child(1) > div:nth-child(3) > div.market_vol__M6Ton'
+      ],
       bidPrice:
         '#mexc-web-inspection-futures-exchange-orderbook > div.market_moduleBody__rui0V > div.market_tableBody__bhNY_ > div.market_bidsWrapper__lt6yB > div:nth-child(1) > div:nth-child(1) > div.market_price__V_09X.market_buy__F9O7S > span',
       bidVolume:
@@ -280,6 +288,14 @@ console.log('🧩 content_mexc.js carregado');
       askVolume: null,
       bidPrice: null,
       bidVolume: null
+    };
+
+    const findFirstText = (candidateSelectors) => {
+      for (const selector of candidateSelectors) {
+        const text = document.querySelector(selector)?.textContent;
+        if (text) return text;
+      }
+      return null;
     };
 
     const applyDomValues = (values) => {
@@ -320,11 +336,9 @@ console.log('🧩 content_mexc.js carregado');
     };
 
     const updateFromDom = () => {
-      const askPrice = parseNumber(
-        document.querySelector(selectors.askPrice)?.textContent
-      );
+      const askPrice = parseNumber(findFirstText(selectors.askPriceCandidates));
       const askVolume = parseNumber(
-        document.querySelector(selectors.askVolume)?.textContent
+        findFirstText(selectors.askVolumeCandidates)
       );
       const bidPrice = parseNumber(
         document.querySelector(selectors.bidPrice)?.textContent

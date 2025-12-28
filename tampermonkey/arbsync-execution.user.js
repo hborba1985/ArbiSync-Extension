@@ -105,9 +105,8 @@
       return;
     }
 
-    setNativeValue(qtyInput, String(volume));
-    dispatchInputEvents(qtyInput);
-    await delay(200);
+    const needsBuy = !!modes.openEnabled;
+    const needsSell = !!modes.closeEnabled;
     const actionLabel = buildSpotButtonLabels('BUY', symbolLabel);
     const closeLabel = buildSpotButtonLabels('SELL', symbolLabel);
 
@@ -121,33 +120,35 @@
     let buyMatch = findGateMatch(actionLabel);
     let sellMatch = findGateMatch(closeLabel);
 
-    if (modes.openEnabled && !buyMatch) {
+    if (needsBuy && !buyMatch) {
       await activateGateTab('buy');
-      setNativeValue(qtyInput, String(volume));
-      dispatchInputEvents(qtyInput);
-      await delay(200);
       buyMatch = findGateMatch(actionLabel);
     }
-    if (modes.closeEnabled && !sellMatch) {
+    if (needsSell && !sellMatch) {
       await activateGateTab('sell');
-      setNativeValue(qtyInput, String(volume));
-      dispatchInputEvents(qtyInput);
-      await delay(200);
       sellMatch = findGateMatch(closeLabel);
     }
 
-    if (modes.openEnabled && buyMatch) {
+    if (needsBuy && buyMatch) {
+      await activateGateTab('buy');
+      setNativeValue(qtyInput, String(volume));
+      dispatchInputEvents(qtyInput);
+      await delay(250);
       await delay(150);
       buyMatch.click();
     }
-    if (modes.openEnabled && !buyMatch) {
+    if (needsBuy && !buyMatch) {
       sendAlert('Não encontrei "Compra". Verifique os botões da Gate.');
     }
-    if (modes.closeEnabled && sellMatch) {
+    if (needsSell && sellMatch) {
+      await activateGateTab('sell');
+      setNativeValue(qtyInput, String(volume));
+      dispatchInputEvents(qtyInput);
+      await delay(250);
       await delay(150);
       sellMatch.click();
     }
-    if (modes.closeEnabled && !sellMatch) {
+    if (needsSell && !sellMatch) {
       sendAlert('Não encontrei "Venda". Verifique os botões da Gate.');
     }
   }

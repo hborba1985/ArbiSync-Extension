@@ -40,6 +40,28 @@ function normalizeFuturesSize(size) {
   return size * contractSize;
 }
 
+function normalizeMexcDepthSize(entry, fallbackPrice) {
+  if (entry == null) return null;
+  if (Array.isArray(entry)) {
+    const price = Number(entry[0]) || fallbackPrice;
+    const qty = Number(entry[1]);
+    const amount = Number(entry[2]);
+    if (Number.isFinite(amount) && Number.isFinite(price) && price > 0) {
+      return amount / price;
+    }
+    return qty;
+  }
+  if (typeof entry === 'object') {
+    const price = Number(entry.price ?? fallbackPrice);
+    const amount = Number(entry.amount ?? entry.vol ?? entry.volume);
+    if (Number.isFinite(amount) && Number.isFinite(price) && price > 0) {
+      return amount / price;
+    }
+    return Number(entry.size ?? entry.qty ?? entry.quantity ?? entry.q);
+  }
+  return Number(entry);
+}
+
 /* ========================================================= */
 /* ====================== GATE SPOT ======================== */
 /* ========================================================= */
@@ -207,15 +229,19 @@ function startMexcFutures() {
       }
 
       if (msg?.data?.asks || msg?.data?.bids) {
-        const depthAskSize = normalizeFuturesSize(
-          normalizeBookSize(msg.data?.asks?.[0])
+        const depthAskBase = normalizeMexcDepthSize(
+          msg.data?.asks?.[0],
+          state.askMexc
         );
+        const depthAskSize = normalizeFuturesSize(depthAskBase);
         if (!Number.isNaN(depthAskSize)) {
           state.mexcAskSize = depthAskSize;
         }
-        const depthBidSize = normalizeFuturesSize(
-          normalizeBookSize(msg.data?.bids?.[0])
+        const depthBidBase = normalizeMexcDepthSize(
+          msg.data?.bids?.[0],
+          state.bidMexc
         );
+        const depthBidSize = normalizeFuturesSize(depthBidBase);
         if (!Number.isNaN(depthBidSize)) {
           state.mexcBidSize = depthBidSize;
         }

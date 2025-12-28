@@ -307,11 +307,7 @@ console.log('🧩 content_gate.js carregado');
       const minLiquidity = Number(settings.minLiquidity);
       const hasMinLiquidity = Number.isFinite(minLiquidity) && minLiquidity > 0;
       const formatLiquidity = (value) =>
-        Number.isFinite(value) ? value.toFixed(2) : '--';
-      const toUsdt = (size, price) => {
-        if (!Number.isFinite(size) || !Number.isFinite(price)) return null;
-        return size * price;
-      };
+        Number.isFinite(value) ? value.toFixed(4) : '--';
       const setLiquidityStatus = (el, label, leftSize, rightSize) => {
         if (!el) return;
         el.classList.remove('positive', 'negative');
@@ -329,26 +325,26 @@ console.log('🧩 content_gate.js carregado');
         )}/${formatLiquidity(rightSize)})`;
         el.classList.add(enough ? 'positive' : 'negative');
       };
-      const gateAskUsdt = toUsdt(data.gateAskSize, data.askGate);
-      const gateBidUsdt = toUsdt(data.gateBidSize, data.bidGate);
-      const mexcBidUsdt = toUsdt(data.mexcBidSize, data.bidMexc);
-      const mexcAskUsdt = toUsdt(data.mexcAskSize, data.askMexc);
+      const gateAskQty = Number(data.gateAskSize);
+      const gateBidQty = Number(data.gateBidSize);
+      const mexcBidQty = Number(data.mexcBidSize);
+      const mexcAskQty = Number(data.mexcAskSize);
       setLiquidityStatus(
         liquidityOpen,
         'ENTRADA',
-        gateAskUsdt,
-        mexcBidUsdt
+        gateAskQty,
+        mexcBidQty
       );
       setLiquidityStatus(
         liquidityClose,
         'SAÍDA',
-        gateBidUsdt,
-        mexcAskUsdt
+        gateBidQty,
+        mexcAskQty
       );
-      if (gateAskSize) gateAskSize.textContent = formatLiquidity(gateAskUsdt);
-      if (gateBidSize) gateBidSize.textContent = formatLiquidity(gateBidUsdt);
-      if (mexcBidSize) mexcBidSize.textContent = formatLiquidity(mexcBidUsdt);
-      if (mexcAskSize) mexcAskSize.textContent = formatLiquidity(mexcAskUsdt);
+      if (gateAskSize) gateAskSize.textContent = formatLiquidity(gateAskQty);
+      if (gateBidSize) gateBidSize.textContent = formatLiquidity(gateBidQty);
+      if (mexcBidSize) mexcBidSize.textContent = formatLiquidity(mexcBidQty);
+      if (mexcAskSize) mexcAskSize.textContent = formatLiquidity(mexcAskQty);
 
       const riskStatus = document.getElementById('riskStatus');
       if (riskStatus) {

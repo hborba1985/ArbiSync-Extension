@@ -73,6 +73,7 @@ console.log('🧩 content_gate.js carregado');
       'spreadMin',
       'minVolume',
       'minLiquidity',
+      'refreshIntervalMs',
       'slippageMax',
       'slippageEstimate',
       'maxAlertsPerMinute',
@@ -115,6 +116,7 @@ console.log('🧩 content_gate.js carregado');
       spreadMin: readNumber('spreadMin'),
       minVolume: readNumber('minVolume'),
       minLiquidity: readNumber('minLiquidity'),
+      refreshIntervalMs: readNumber('refreshIntervalMs'),
       slippageMax: readNumber('slippageMax'),
       slippageEstimate: readNumber('slippageEstimate'),
       maxAlertsPerMinute: readNumber('maxAlertsPerMinute'),
@@ -295,7 +297,19 @@ console.log('🧩 content_gate.js carregado');
     };
 
     updateFromDom();
-    setInterval(updateFromDom, 1000);
+    const getRefreshInterval = () => {
+      const value = Number(
+        document.getElementById('refreshIntervalMs')?.value
+      );
+      return Number.isFinite(value) && value > 0 ? value : 1000;
+    };
+    let intervalId = setInterval(updateFromDom, getRefreshInterval());
+    setInterval(() => {
+      const next = getRefreshInterval();
+      if (!Number.isFinite(next)) return;
+      clearInterval(intervalId);
+      intervalId = setInterval(updateFromDom, next);
+    }, 1000);
   }
 
   if (document.readyState === 'loading') {
@@ -411,14 +425,30 @@ console.log('🧩 content_gate.js carregado');
         gateBidQty,
         mexcAskQty
       );
-      if (gateAskSize) gateAskSize.textContent = formatLiquidity(gateAskQty);
-      if (gateBidSize) gateBidSize.textContent = formatLiquidity(gateBidQty);
-      if (mexcBidSize) mexcBidSize.textContent = formatLiquidity(mexcBidQty);
-      if (mexcAskSize) mexcAskSize.textContent = formatLiquidity(mexcAskQty);
-      if (gateAskPrice) gateAskPrice.textContent = formatPrice(gateAskPx);
-      if (gateBidPrice) gateBidPrice.textContent = formatPrice(gateBidPx);
-      if (mexcBidPrice) mexcBidPrice.textContent = formatPrice(mexcBidPx);
-      if (mexcAskPrice) mexcAskPrice.textContent = formatPrice(mexcAskPx);
+      if (gateAskSize && Number.isFinite(gateAskQty)) {
+        gateAskSize.textContent = formatLiquidity(gateAskQty);
+      }
+      if (gateBidSize && Number.isFinite(gateBidQty)) {
+        gateBidSize.textContent = formatLiquidity(gateBidQty);
+      }
+      if (mexcBidSize && Number.isFinite(mexcBidQty)) {
+        mexcBidSize.textContent = formatLiquidity(mexcBidQty);
+      }
+      if (mexcAskSize && Number.isFinite(mexcAskQty)) {
+        mexcAskSize.textContent = formatLiquidity(mexcAskQty);
+      }
+      if (gateAskPrice && Number.isFinite(gateAskPx)) {
+        gateAskPrice.textContent = formatPrice(gateAskPx);
+      }
+      if (gateBidPrice && Number.isFinite(gateBidPx)) {
+        gateBidPrice.textContent = formatPrice(gateBidPx);
+      }
+      if (mexcBidPrice && Number.isFinite(mexcBidPx)) {
+        mexcBidPrice.textContent = formatPrice(mexcBidPx);
+      }
+      if (mexcAskPrice && Number.isFinite(mexcAskPx)) {
+        mexcAskPrice.textContent = formatPrice(mexcAskPx);
+      }
 
       const riskStatus = document.getElementById('riskStatus');
       if (riskStatus) {
@@ -466,6 +496,7 @@ console.log('🧩 content_gate.js carregado');
       updateInput('spreadMin', settings.spreadMin);
       updateInput('minVolume', settings.minVolume);
       updateInput('minLiquidity', settings.minLiquidity);
+      updateInput('refreshIntervalMs', settings.refreshIntervalMs);
       updateInput('slippageMax', settings.slippageMax);
       updateInput('slippageEstimate', settings.slippageEstimate);
       updateInput('maxAlertsPerMinute', settings.maxAlertsPerMinute);

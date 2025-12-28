@@ -17,6 +17,7 @@ export default {
     spreadMin: null,
     minVolume: null,
     minLiquidity: null,
+    refreshIntervalMs: null,
     slippageMax: null,
     maxAlertsPerMinute: null,
     futuresContractSize: null,

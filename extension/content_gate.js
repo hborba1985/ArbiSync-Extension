@@ -413,6 +413,8 @@ console.log('🧩 content_gate.js carregado');
         allowPartial.checked = !!settings.allowPartialExecution;
       }
       if (settings.executionModes) {
+        const openEnabled = document.getElementById('openEnabled');
+        const closeEnabled = document.getElementById('closeEnabled');
         if (openEnabled && openEnabled.dataset.userEdited !== 'true') {
           openEnabled.checked = !!settings.executionModes.openEnabled;
         }

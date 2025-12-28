@@ -413,6 +413,8 @@ console.log('🧩 content_mexc.js carregado');
         allowPartialInput.checked = !!settings.allowPartialExecution;
       }
       if (settings.executionModes) {
+        const openEnabled = document.getElementById('openEnabled');
+        const closeEnabled = document.getElementById('closeEnabled');
         if (openEnabled && openEnabled.dataset.userEdited !== 'true') {
           openEnabled.checked = !!settings.executionModes.openEnabled;
         }

@@ -5,6 +5,10 @@ console.log('🧩 content_gate.js carregado');
 (function () {
   const OVERLAY_ID = 'arb-assistant-overlay-wrapper';
   let lastDomBookUpdate = 0;
+  const domBookCache = {
+    gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
+    mexc: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null }
+  };
 
   function ensureOverlay() {
     if (document.getElementById(OVERLAY_ID)) return;
@@ -283,24 +287,28 @@ console.log('🧩 content_gate.js carregado');
         if (askPriceEl) askPriceEl.textContent = askPrice.toFixed(11);
         last.askPrice = askPrice;
         lastDomBookUpdate = Date.now();
+        domBookCache.gate.askPrice = askPrice;
       }
       if (Number.isFinite(bidPrice)) {
         const bidEl = document.getElementById('gateBidPrice');
         if (bidEl) bidEl.textContent = bidPrice.toFixed(11);
         last.bidPrice = bidPrice;
         lastDomBookUpdate = Date.now();
+        domBookCache.gate.bidPrice = bidPrice;
       }
       if (Number.isFinite(askVolume)) {
         const askVolEl = document.getElementById('gateAskSize');
         if (askVolEl) askVolEl.textContent = askVolume.toFixed(4);
         last.askVolume = askVolume;
         lastDomBookUpdate = Date.now();
+        domBookCache.gate.askVolume = askVolume;
       }
       if (Number.isFinite(bidVolume)) {
         const bidVolEl = document.getElementById('gateBidSize');
         if (bidVolEl) bidVolEl.textContent = bidVolume.toFixed(4);
         last.bidVolume = bidVolume;
         lastDomBookUpdate = Date.now();
+        domBookCache.gate.bidVolume = bidVolume;
       }
     };
 
@@ -440,10 +448,14 @@ console.log('🧩 content_gate.js carregado');
         )}/${formatLiquidity(rightSize)})`;
         el.classList.add(enough ? 'positive' : 'negative');
       };
-      const gateAskQty = Number(data.gateAskSize);
-      const gateBidQty = Number(data.gateBidSize);
-      const mexcBidQty = Number(data.mexcBidSize);
-      const mexcAskQty = Number(data.mexcAskSize);
+      const gateAskQty =
+        domBookCache.gate.askVolume ?? Number(data.gateAskSize);
+      const gateBidQty =
+        domBookCache.gate.bidVolume ?? Number(data.gateBidSize);
+      const mexcBidQty =
+        domBookCache.mexc.bidVolume ?? Number(data.mexcBidSize);
+      const mexcAskQty =
+        domBookCache.mexc.askVolume ?? Number(data.mexcAskSize);
       const gateAskPx = Number(data.askGate);
       const gateBidPx = Number(data.bidGate);
       const mexcBidPx = Number(data.bidMexc);
@@ -577,18 +589,22 @@ console.log('🧩 content_gate.js carregado');
       if (mexcAskPrice && Number.isFinite(askPrice)) {
         mexcAskPrice.textContent = askPrice.toFixed(11);
         lastDomBookUpdate = Date.now();
+        domBookCache.mexc.askPrice = askPrice;
       }
       if (mexcBidPrice && Number.isFinite(bidPrice)) {
         mexcBidPrice.textContent = bidPrice.toFixed(11);
         lastDomBookUpdate = Date.now();
+        domBookCache.mexc.bidPrice = bidPrice;
       }
       if (mexcAskSize && Number.isFinite(askVolume)) {
         mexcAskSize.textContent = askVolume.toFixed(4);
         lastDomBookUpdate = Date.now();
+        domBookCache.mexc.askVolume = askVolume;
       }
       if (mexcBidSize && Number.isFinite(bidVolume)) {
         mexcBidSize.textContent = bidVolume.toFixed(4);
         lastDomBookUpdate = Date.now();
+        domBookCache.mexc.bidVolume = bidVolume;
       }
     }
   });

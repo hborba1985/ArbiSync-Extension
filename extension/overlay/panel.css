@@ -126,7 +126,8 @@
   font-size: 12px;
 }
 
-#arb-panel .liquidity-value {
+#arb-panel .liquidity-value,
+#arb-panel .liquidity-price {
   display: flex;
   justify-content: space-between;
   align-items: center;

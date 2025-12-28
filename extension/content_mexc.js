@@ -304,10 +304,16 @@ console.log('🧩 content_mexc.js carregado');
       const gateBidSize = document.getElementById('gateBidSize');
       const mexcBidSize = document.getElementById('mexcBidSize');
       const mexcAskSize = document.getElementById('mexcAskSize');
+      const gateAskPrice = document.getElementById('gateAskPrice');
+      const gateBidPrice = document.getElementById('gateBidPrice');
+      const mexcBidPrice = document.getElementById('mexcBidPrice');
+      const mexcAskPrice = document.getElementById('mexcAskPrice');
       const minLiquidity = Number(settings.minLiquidity);
       const hasMinLiquidity = Number.isFinite(minLiquidity) && minLiquidity > 0;
       const formatLiquidity = (value) =>
         Number.isFinite(value) ? value.toFixed(4) : '--';
+      const formatPrice = (value) =>
+        Number.isFinite(value) ? value.toFixed(11) : '--';
       const setLiquidityStatus = (el, label, leftSize, rightSize) => {
         if (!el) return;
         el.classList.remove('positive', 'negative');
@@ -329,6 +335,10 @@ console.log('🧩 content_mexc.js carregado');
       const gateBidQty = Number(data.gateBidSize);
       const mexcBidQty = Number(data.mexcBidSize);
       const mexcAskQty = Number(data.mexcAskSize);
+      const gateAskPx = Number(data.askGate);
+      const gateBidPx = Number(data.bidGate);
+      const mexcBidPx = Number(data.bidMexc);
+      const mexcAskPx = Number(data.askMexc);
       setLiquidityStatus(
         liquidityOpen,
         'ENTRADA',
@@ -345,6 +355,10 @@ console.log('🧩 content_mexc.js carregado');
       if (gateBidSize) gateBidSize.textContent = formatLiquidity(gateBidQty);
       if (mexcBidSize) mexcBidSize.textContent = formatLiquidity(mexcBidQty);
       if (mexcAskSize) mexcAskSize.textContent = formatLiquidity(mexcAskQty);
+      if (gateAskPrice) gateAskPrice.textContent = formatPrice(gateAskPx);
+      if (gateBidPrice) gateBidPrice.textContent = formatPrice(gateBidPx);
+      if (mexcBidPrice) mexcBidPrice.textContent = formatPrice(mexcBidPx);
+      if (mexcAskPrice) mexcAskPrice.textContent = formatPrice(mexcAskPx);
 
       const riskStatus = document.getElementById('riskStatus');
       if (riskStatus) {

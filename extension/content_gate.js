@@ -263,6 +263,42 @@ console.log('🧩 content_gate.js carregado');
         '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE'
     };
 
+    const last = {
+      askPrice: null,
+      askVolume: null,
+      bidPrice: null,
+      bidVolume: null
+    };
+
+    const applyDomValues = (values) => {
+      const askPrice = values.askPrice ?? last.askPrice;
+      const bidPrice = values.bidPrice ?? last.bidPrice;
+      const askVolume = values.askVolume ?? last.askVolume;
+      const bidVolume = values.bidVolume ?? last.bidVolume;
+
+      if (Number.isFinite(askPrice)) {
+        setText('askGate', askPrice.toFixed(11));
+        const askPriceEl = document.getElementById('gateAskPrice');
+        if (askPriceEl) askPriceEl.textContent = askPrice.toFixed(11);
+        last.askPrice = askPrice;
+      }
+      if (Number.isFinite(bidPrice)) {
+        const bidEl = document.getElementById('gateBidPrice');
+        if (bidEl) bidEl.textContent = bidPrice.toFixed(11);
+        last.bidPrice = bidPrice;
+      }
+      if (Number.isFinite(askVolume)) {
+        const askVolEl = document.getElementById('gateAskSize');
+        if (askVolEl) askVolEl.textContent = askVolume.toFixed(4);
+        last.askVolume = askVolume;
+      }
+      if (Number.isFinite(bidVolume)) {
+        const bidVolEl = document.getElementById('gateBidSize');
+        if (bidVolEl) bidVolEl.textContent = bidVolume.toFixed(4);
+        last.bidVolume = bidVolume;
+      }
+    };
+
     const updateFromDom = () => {
       const askPrice = parseNumber(
         document.querySelector(selectors.askPrice)?.textContent
@@ -277,23 +313,18 @@ console.log('🧩 content_gate.js carregado');
         document.querySelector(selectors.bidVolume)?.textContent
       );
 
-      if (Number.isFinite(askPrice)) {
-        setText('askGate', askPrice.toFixed(11));
-        const askPriceEl = document.getElementById('gateAskPrice');
-        if (askPriceEl) askPriceEl.textContent = askPrice.toFixed(11);
-      }
-      if (Number.isFinite(bidPrice)) {
-        const bidEl = document.getElementById('gateBidPrice');
-        if (bidEl) bidEl.textContent = bidPrice.toFixed(11);
-      }
-      if (Number.isFinite(askVolume)) {
-        const askVolEl = document.getElementById('gateAskSize');
-        if (askVolEl) askVolEl.textContent = askVolume.toFixed(4);
-      }
-      if (Number.isFinite(bidVolume)) {
-        const bidVolEl = document.getElementById('gateBidSize');
-        if (bidVolEl) bidVolEl.textContent = bidVolume.toFixed(4);
-      }
+      applyDomValues({ askPrice, askVolume, bidPrice, bidVolume });
+
+      chrome.runtime?.sendMessage?.({
+        type: 'DOM_BOOK',
+        payload: {
+          source: 'gate',
+          askPrice,
+          askVolume,
+          bidPrice,
+          bidVolume
+        }
+      });
     };
 
     updateFromDom();
@@ -304,12 +335,11 @@ console.log('🧩 content_gate.js carregado');
       return Number.isFinite(value) && value > 0 ? value : 1000;
     };
     let intervalId = setInterval(updateFromDom, getRefreshInterval());
-    setInterval(() => {
-      const next = getRefreshInterval();
-      if (!Number.isFinite(next)) return;
+    const refreshInput = document.getElementById('refreshIntervalMs');
+    refreshInput?.addEventListener('input', () => {
       clearInterval(intervalId);
-      intervalId = setInterval(updateFromDom, next);
-    }, 1000);
+      intervalId = setInterval(updateFromDom, getRefreshInterval());
+    });
   }
 
   if (document.readyState === 'loading') {
@@ -522,6 +552,31 @@ console.log('🧩 content_gate.js carregado');
         if (closeEnabled && closeEnabled.dataset.userEdited !== 'true') {
           closeEnabled.checked = !!settings.executionModes.closeEnabled;
         }
+      }
+    }
+
+    if (msg.type === 'DOM_BOOK' && msg.payload?.source === 'mexc') {
+      const askPrice = Number(msg.payload.askPrice);
+      const bidPrice = Number(msg.payload.bidPrice);
+      const askVolume = Number(msg.payload.askVolume);
+      const bidVolume = Number(msg.payload.bidVolume);
+
+      const mexcAskPrice = document.getElementById('mexcAskPrice');
+      const mexcBidPrice = document.getElementById('mexcBidPrice');
+      const mexcAskSize = document.getElementById('mexcAskSize');
+      const mexcBidSize = document.getElementById('mexcBidSize');
+
+      if (mexcAskPrice && Number.isFinite(askPrice)) {
+        mexcAskPrice.textContent = askPrice.toFixed(11);
+      }
+      if (mexcBidPrice && Number.isFinite(bidPrice)) {
+        mexcBidPrice.textContent = bidPrice.toFixed(11);
+      }
+      if (mexcAskSize && Number.isFinite(askVolume)) {
+        mexcAskSize.textContent = askVolume.toFixed(4);
+      }
+      if (mexcBidSize && Number.isFinite(bidVolume)) {
+        mexcBidSize.textContent = bidVolume.toFixed(4);
       }
     }
   });

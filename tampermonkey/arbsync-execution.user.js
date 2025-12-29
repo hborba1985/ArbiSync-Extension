@@ -129,11 +129,11 @@
     let finalAction = null;
 
     if (needsBuy && !buyMatch) {
-      activateGateTab('buy');
+      await activateGateTab('buy');
       buyMatch = findGateMatch(actionLabel);
     }
     if (needsSell && !sellMatch) {
-      activateGateTab('sell');
+      await activateGateTab('sell');
       sellMatch = findGateMatch(closeLabel);
     }
 
@@ -149,7 +149,13 @@
       return;
     }
 
-    activateGateTab(finalAction.tab);
+    await activateGateTab(finalAction.tab);
+    const refreshedAction = findGateMatch(
+      finalAction.tab === 'buy' ? actionLabel : closeLabel
+    );
+    if (refreshedAction) {
+      finalAction.button = refreshedAction;
+    }
     const refreshedQtyInput = getQtyInput();
     if (!refreshedQtyInput) {
       sendAlert('Não encontrei o campo Quantia na Gate.');
@@ -157,6 +163,7 @@
     }
     setNativeValue(refreshedQtyInput, String(volume));
     dispatchInputEvents(refreshedQtyInput);
+    await delay(submitDelay);
     finalAction.button.click();
   }
 
@@ -245,12 +252,29 @@
     );
   }
 
-  function activateGateTab(tab) {
+  async function activateGateTab(tab) {
     const selector = tab === 'sell' ? '#tab-sell' : '#tab-buy';
     const button = document.querySelector(selector);
     if (button) {
       button.click();
+      await waitForGateTab(tab);
     }
+  }
+
+  async function waitForGateTab(tab) {
+    const target = tab === 'sell' ? '#tab-sell' : '#tab-buy';
+    const start = Date.now();
+    while (Date.now() - start < 1500) {
+      const el = document.querySelector(target);
+      if (el?.getAttribute('aria-selected') === 'true' || el?.dataset?.active === 'true') {
+        return;
+      }
+      await nextFrame();
+    }
+  }
+
+  function nextFrame() {
+    return new Promise((resolve) => requestAnimationFrame(resolve));
   }
 
   function normalizeSymbol(symbol) {

@@ -79,6 +79,7 @@ console.log('🧩 content_gate.js carregado');
       'minVolume',
       'minLiquidity',
       'refreshIntervalMs',
+      'submitDelayMs',
       'slippageMax',
       'slippageEstimate',
       'maxAlertsPerMinute',
@@ -122,6 +123,7 @@ console.log('🧩 content_gate.js carregado');
       minVolume: readNumber('minVolume'),
       minLiquidity: readNumber('minLiquidity'),
       refreshIntervalMs: readNumber('refreshIntervalMs'),
+      submitDelayMs: readNumber('submitDelayMs'),
       slippageMax: readNumber('slippageMax'),
       slippageEstimate: readNumber('slippageEstimate'),
       maxAlertsPerMinute: readNumber('maxAlertsPerMinute'),
@@ -158,7 +160,8 @@ console.log('🧩 content_gate.js carregado');
               futuresContracts: settings.testVolume,
               pairGate: testBtn.dataset.pairGate || '',
               pairMexc: testBtn.dataset.pairMexc || '',
-              modes: settings.executionModes
+              modes: settings.executionModes,
+              submitDelayMs: settings.submitDelayMs
             }
           },
           '*'
@@ -554,6 +557,7 @@ console.log('🧩 content_gate.js carregado');
       updateInput('minVolume', settings.minVolume);
       updateInput('minLiquidity', settings.minLiquidity);
       updateInput('refreshIntervalMs', settings.refreshIntervalMs);
+      updateInput('submitDelayMs', settings.submitDelayMs);
       updateInput('slippageMax', settings.slippageMax);
       updateInput('slippageEstimate', settings.slippageEstimate);
       updateInput('maxAlertsPerMinute', settings.maxAlertsPerMinute);

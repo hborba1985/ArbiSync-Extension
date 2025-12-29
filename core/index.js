@@ -18,6 +18,7 @@ state.settings = {
   minVolume: cfg.MIN_VOLUME,
   minLiquidity: cfg.MIN_LIQUIDITY,
   refreshIntervalMs: 1000,
+  submitDelayMs: 250,
   slippageMax: cfg.SLIPPAGE_MAX,
   maxAlertsPerMinute: cfg.MAX_ALERTS_PER_MINUTE,
   futuresContractSize: cfg.FUTURES_CONTRACT_SIZE,

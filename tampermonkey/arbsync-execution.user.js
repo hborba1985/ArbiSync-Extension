@@ -30,6 +30,7 @@
     const payload = event.data.payload || {};
     const spotVolume = Number(payload.spotVolume || 0);
     const futuresContracts = Number(payload.futuresContracts || 0);
+    const submitDelayMs = Number(payload.submitDelayMs || 250);
     const gateSymbol = normalizeSymbol(payload.pairGate);
     const mexcSymbol = normalizeSymbol(payload.pairMexc);
     const modes = payload.modes || {};
@@ -37,14 +38,16 @@
     if (EXCHANGE === 'GATE') {
       await executeGateSpot(spotVolume, {
         symbol: gateSymbol,
-        modes
+        modes,
+        submitDelayMs
       });
     }
 
     if (EXCHANGE === 'MEXC') {
       await executeMexcFutures(futuresContracts, {
         symbol: mexcSymbol,
-        modes
+        modes,
+        submitDelayMs
       });
     }
   });
@@ -89,6 +92,7 @@
       document.querySelector('input[placeholder*="Quantidade"], input[placeholder*="Amount"]');
     const symbolLabel = (context.symbol || '').toUpperCase();
     const modes = context.modes || {};
+    const submitDelay = Number(context.submitDelayMs || 250);
     const buyButton = findButtonByText(
       buildSpotButtonLabels('BUY', symbolLabel),
       '#trading_dom',
@@ -133,8 +137,7 @@
       await activateGateTab('buy');
       setNativeValue(qtyInput, String(volume));
       dispatchInputEvents(qtyInput);
-      await delay(250);
-      await delay(150);
+      await delay(submitDelay);
       buyMatch.click();
     }
     if (needsBuy && !buyMatch) {
@@ -144,8 +147,7 @@
       await activateGateTab('sell');
       setNativeValue(qtyInput, String(volume));
       dispatchInputEvents(qtyInput);
-      await delay(250);
-      await delay(150);
+      await delay(submitDelay);
       sellMatch.click();
     }
     if (needsSell && !sellMatch) {
@@ -184,7 +186,7 @@
 
     setNativeValue(qtyInput, String(contracts));
     dispatchInputEvents(qtyInput);
-    await delay(150);
+    await delay(submitDelay);
     if (context.modes?.openEnabled && sellButton) {
       sellButton.click();
     }
@@ -192,6 +194,7 @@
       sendAlert('Não encontrei "Abrir Short". Verifique se a aba Abrir está ativa.');
     }
     if (context.modes?.closeEnabled && closeButton) {
+      await delay(submitDelay);
       closeButton.click();
     }
     if (context.modes?.closeEnabled && !closeButton) {
@@ -259,3 +262,4 @@
     return [`${verb} ${symbolLabel}`, verb, `${fallback} ${symbolLabel}`, fallback];
   }
 })();
+    const submitDelay = Number(context.submitDelayMs || 250);

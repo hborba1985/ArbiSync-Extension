@@ -129,11 +129,11 @@
     let finalAction = null;
 
     if (needsBuy && !buyMatch) {
-      await activateGateTab('buy');
+      activateGateTab('buy');
       buyMatch = findGateMatch(actionLabel);
     }
     if (needsSell && !sellMatch) {
-      await activateGateTab('sell');
+      activateGateTab('sell');
       sellMatch = findGateMatch(closeLabel);
     }
 
@@ -149,7 +149,7 @@
       return;
     }
 
-    await activateGateTab(finalAction.tab);
+    activateGateTab(finalAction.tab);
     const refreshedQtyInput = getQtyInput();
     if (!refreshedQtyInput) {
       sendAlert('Não encontrei o campo Quantia na Gate.');
@@ -157,14 +157,6 @@
     }
     setNativeValue(refreshedQtyInput, String(volume));
     dispatchInputEvents(refreshedQtyInput);
-    const filled = await waitForInputValue(refreshedQtyInput, String(volume), 1200);
-    if (!filled) {
-      setNativeValue(refreshedQtyInput, String(volume));
-      dispatchInputEvents(refreshedQtyInput);
-      await waitForInputValue(refreshedQtyInput, String(volume), 1200);
-    }
-    await delay(250);
-    await delay(submitDelay);
     finalAction.button.click();
   }
 
@@ -199,7 +191,6 @@
 
     setNativeValue(qtyInput, String(contracts));
     dispatchInputEvents(qtyInput);
-    await delay(submitDelay);
     if (context.modes?.openEnabled && sellButton) {
       sellButton.click();
     }
@@ -207,7 +198,6 @@
       sendAlert('Não encontrei "Abrir Short". Verifique se a aba Abrir está ativa.');
     }
     if (context.modes?.closeEnabled && closeButton) {
-      await delay(submitDelay);
       closeButton.click();
     }
     if (context.modes?.closeEnabled && !closeButton) {
@@ -241,15 +231,6 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
-  async function waitForInputValue(input, expected, timeoutMs = 1000) {
-    const start = Date.now();
-    while (Date.now() - start < timeoutMs) {
-      const current = String(input.value || '').trim();
-      if (current === expected) return true;
-      await delay(50);
-    }
-    return false;
-  }
 
   function sendAlert(message) {
     window.postMessage({ type: 'ARBSYNC_ALERT', message }, '*');
@@ -264,12 +245,11 @@
     );
   }
 
-  async function activateGateTab(tab) {
+  function activateGateTab(tab) {
     const selector = tab === 'sell' ? '#tab-sell' : '#tab-buy';
     const button = document.querySelector(selector);
     if (button) {
       button.click();
-      await delay(350);
     }
   }
 

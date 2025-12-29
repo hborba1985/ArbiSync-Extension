@@ -2,6 +2,40 @@
 
 let ws = null;
 let reconnectTimer = null;
+const tabLinks = new Map();
+
+function normalizeGroup(group) {
+  return String(group || '').trim();
+}
+
+function updateTabLink(tabId, data) {
+  const current = tabLinks.get(tabId) || {};
+  tabLinks.set(tabId, { ...current, ...data });
+}
+
+function getGroupStatus(group) {
+  const normalized = normalizeGroup(group);
+  const status = {
+    group: normalized,
+    hasGate: false,
+    hasMexc: false,
+    gateTabs: [],
+    mexcTabs: []
+  };
+  if (!normalized) return status;
+  for (const [tabId, info] of tabLinks.entries()) {
+    if (!info?.group || info.group !== normalized) continue;
+    if (info.exchange === 'GATE') {
+      status.hasGate = true;
+      status.gateTabs.push(tabId);
+    }
+    if (info.exchange === 'MEXC') {
+      status.hasMexc = true;
+      status.mexcTabs.push(tabId);
+    }
+  }
+  return status;
+}
 
 function isTargetTab(url = '') {
   return (
@@ -72,6 +106,9 @@ connectWs();
 
 chrome.runtime.onStartup.addListener(() => connectWs());
 chrome.runtime.onInstalled.addListener(() => connectWs());
+chrome.tabs.onRemoved.addListener((tabId) => {
+  tabLinks.delete(tabId);
+});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !message.type) return;
@@ -83,6 +120,66 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     } else {
       sendResponse({ ok: false, error: 'CORE_WS_OFFLINE' });
     }
+    return;
+  }
+
+  if (message.type === 'REGISTER_TAB') {
+    if (sender.tab?.id) {
+      updateTabLink(sender.tab.id, {
+        exchange: message.exchange,
+        group: normalizeGroup(message.group)
+      });
+    }
+    sendResponse({ ok: true, status: getGroupStatus(message.group) });
+    return;
+  }
+
+  if (message.type === 'UPDATE_GROUP') {
+    if (sender.tab?.id) {
+      updateTabLink(sender.tab.id, {
+        exchange: message.exchange,
+        group: normalizeGroup(message.group)
+      });
+    }
+    sendResponse({ ok: true, status: getGroupStatus(message.group) });
+    return;
+  }
+
+  if (message.type === 'REQUEST_GROUP_STATUS') {
+    sendResponse({ ok: true, status: getGroupStatus(message.group) });
+    return;
+  }
+
+  if (message.type === 'SYNC_TEST_EXECUTION') {
+    const group = normalizeGroup(message.group);
+    const status = getGroupStatus(group);
+    const payload = message.payload || {};
+    const targetTabs = new Set();
+    status.gateTabs.forEach((tabId) => targetTabs.add(tabId));
+    status.mexcTabs.forEach((tabId) => targetTabs.add(tabId));
+
+    if (targetTabs.size === 0 && sender.tab?.id) {
+      targetTabs.add(sender.tab.id);
+    }
+
+    for (const tabId of targetTabs) {
+      chrome.tabs.sendMessage(tabId, {
+        type: 'RUN_TEST_EXECUTION',
+        payload
+      }).catch(() => {
+        // Ignore missing content scripts
+      });
+    }
+
+    if (!group) {
+      sendResponse({ ok: false, reason: 'NO_GROUP', status });
+      return;
+    }
+    if (!(status.hasGate && status.hasMexc)) {
+      sendResponse({ ok: false, reason: 'MISSING_PAIR', status });
+      return;
+    }
+    sendResponse({ ok: true, status });
     return;
   }
 

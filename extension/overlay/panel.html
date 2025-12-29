@@ -144,6 +144,21 @@
   <button id="testBtn" class="ghost">Teste de execução</button>
 
   <div class="section-title">Execução sincronizada</div>
+  <div class="field checkbox">
+    <label>
+      <input id="syncExecutionEnabled" type="checkbox" />
+      Executar testes simultaneamente (SPOT + FUTUROS)
+    </label>
+  </div>
+  <div class="field">
+    <label for="arbGroup">Grupo da arbitragem</label>
+    <input id="arbGroup" type="text" placeholder="Ex: BTC-GATE-MEXC" />
+  </div>
+  <div class="button-row">
+    <button id="linkTabsBtn" class="ghost">Vincular aba atual</button>
+    <button id="usePairBtn" class="ghost">Usar par atual</button>
+  </div>
+  <div class="status" id="linkStatus">LINK: aguardando</div>
   <div class="status" id="syncStatus">SYNC: aguardando Tampermonkey</div>
   <div class="section-title">Modos de execução</div>
   <div class="field checkbox">

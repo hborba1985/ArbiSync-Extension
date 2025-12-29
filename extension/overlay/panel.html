@@ -95,11 +95,11 @@
   </div>
   <div class="field">
     <label for="refreshIntervalMs">Refresh do book (ms)</label>
-    <input id="refreshIntervalMs" type="number" step="50" placeholder="Ex: 1000" />
+    <input id="refreshIntervalMs" type="number" step="50" value="1" placeholder="Ex: 1000" />
   </div>
   <div class="field">
     <label for="submitDelayMs">Delay antes do clique (ms)</label>
-    <input id="submitDelayMs" type="number" step="50" placeholder="Ex: 250" />
+    <input id="submitDelayMs" type="number" step="50" value="1" placeholder="Ex: 250" />
   </div>
   <div class="field">
     <label for="slippageMax">Slippage máximo (%)</label>
@@ -144,6 +144,21 @@
   <button id="testBtn" class="ghost">Teste de execução</button>
 
   <div class="section-title">Execução sincronizada</div>
+  <div class="field checkbox">
+    <label>
+      <input id="syncExecutionEnabled" type="checkbox" />
+      Executar testes simultaneamente (SPOT + FUTUROS)
+    </label>
+  </div>
+  <div class="field">
+    <label for="arbGroup">Grupo da arbitragem</label>
+    <input id="arbGroup" type="text" placeholder="Ex: BTC-GATE-MEXC" />
+  </div>
+  <div class="button-row">
+    <button id="linkTabsBtn" class="ghost">Vincular aba atual</button>
+    <button id="usePairBtn" class="ghost">Usar par atual</button>
+  </div>
+  <div class="status" id="linkStatus">LINK: aguardando</div>
   <div class="status" id="syncStatus">SYNC: aguardando Tampermonkey</div>
   <div class="section-title">Modos de execução</div>
   <div class="field checkbox">

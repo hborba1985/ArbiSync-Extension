@@ -173,42 +173,59 @@
       return;
     }
 
-    const qtyInput = document.querySelector(
-      '#mexc_contract_v_open_position > div > div.component_inputWrapper__LP4Dm > div.component_numberInput__PF7Vf > div > div.InputNumberHandle_inputOuterWrapper__8w_l1 > div > div > input, input[placeholder*="Quantidade"], input[placeholder*="Qty"]'
-    );
-    const sellButton =
+    const getQtyInput = () =>
+      document.querySelector(
+        '#mexc_contract_v_open_position > div > div.component_inputWrapper__LP4Dm > div.component_numberInput__PF7Vf > div > div.InputNumberHandle_inputOuterWrapper__8w_l1 > div > div > input, input[placeholder*="Quantidade"], input[placeholder*="Qty"]'
+      );
+    const findSellButton = () =>
       document.querySelector(
         'button[data-testid="contract-trade-open-short-btn"]'
-      ) || findButtonByText(
+      ) ||
+      findButtonByText(
         ['Abrir Short', 'Short', 'Abrir'],
         '#mexc_contract_v_open_position_info_login'
       );
-    const closeButton =
+    const findCloseButton = () =>
       document.querySelector(
         'button[data-testid="contract-trade-close-short-btn"]'
-      ) || findButtonByText(
+      ) ||
+      findButtonByText(
         ['Fechar Short', 'Fechar Long', 'Fechar'],
         '#mexc_contract_v_open_position_info_login'
       );
 
-    if (!qtyInput || !sellButton) {
+    const setContracts = () => {
+      const qtyInput = getQtyInput();
+      if (!qtyInput) return null;
+      setNativeValue(qtyInput, String(contracts));
+      dispatchInputEvents(qtyInput);
+      return qtyInput;
+    };
+
+    if (!getQtyInput()) {
       console.warn('[ArbiSync] Ajuste os seletores MEXC FUTUROS');
       return;
     }
 
-    setNativeValue(qtyInput, String(contracts));
-    dispatchInputEvents(qtyInput);
-    if (context.modes?.openEnabled && sellButton) {
-      sellButton.click();
+    if (context.modes?.openEnabled) {
+      await activateMexcTab('open');
+      setContracts();
+      const sellButton = findSellButton();
+      if (sellButton) {
+        sellButton.click();
+      } else {
+        sendAlert('Não encontrei "Abrir Short". Verifique se a aba Abrir está ativa.');
+      }
     }
-    if (context.modes?.openEnabled && !sellButton) {
-      sendAlert('Não encontrei "Abrir Short". Verifique se a aba Abrir está ativa.');
-    }
-    if (context.modes?.closeEnabled && closeButton) {
-      closeButton.click();
-    }
-    if (context.modes?.closeEnabled && !closeButton) {
-      sendAlert('Não encontrei "Fechar Short". Verifique se a aba Fechar está ativa.');
+    if (context.modes?.closeEnabled) {
+      await activateMexcTab('close');
+      setContracts();
+      const closeButton = findCloseButton();
+      if (closeButton) {
+        closeButton.click();
+      } else {
+        sendAlert('Não encontrei "Fechar Short". Verifique se a aba Fechar está ativa.');
+      }
     }
   }
 
@@ -287,5 +304,37 @@
     const fallback = action === 'SELL' ? 'Sell' : 'Buy';
     if (!symbolLabel) return [verb, fallback];
     return [`${verb} ${symbolLabel}`, verb, `${fallback} ${symbolLabel}`, fallback];
+  }
+
+  function findMexcTab(labels) {
+    const tabs = Array.from(document.querySelectorAll('[role="tab"], button'));
+    return tabs.find((tab) => {
+      if (!isTabButton(tab)) return false;
+      return labels.some((label) => tab.textContent?.trim().includes(label));
+    });
+  }
+
+  async function activateMexcTab(tab) {
+    const labels = tab === 'close'
+      ? ['Fechar', 'Close']
+      : ['Abrir', 'Open'];
+    const button = findMexcTab(labels);
+    if (button) {
+      button.click();
+      await waitForMexcTab(button);
+    }
+  }
+
+  async function waitForMexcTab(button) {
+    const start = Date.now();
+    while (Date.now() - start < 1500) {
+      const selected =
+        button.getAttribute('aria-selected') === 'true' ||
+        button.dataset?.active === 'true' ||
+        button.classList.contains('active') ||
+        button.classList.contains('selected');
+      if (selected) return;
+      await nextFrame();
+    }
   }
 })();

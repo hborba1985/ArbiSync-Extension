@@ -17,8 +17,8 @@ export default {
     spreadMin: null,
     minVolume: null,
     minLiquidity: null,
-    refreshIntervalMs: null,
-    submitDelayMs: null,
+    refreshIntervalMs: 1,
+    submitDelayMs: 1,
     slippageMax: null,
     maxAlertsPerMinute: null,
     futuresContractSize: null,
@@ -30,6 +30,7 @@ export default {
     testVolume: null,
     slippageEstimate: null,
     enableLiveExecution: false,
+    syncTestExecution: false,
     executionModes: {
       openEnabled: true,
       closeEnabled: false

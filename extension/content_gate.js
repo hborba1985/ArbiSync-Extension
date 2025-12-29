@@ -4,11 +4,15 @@ console.log('🧩 content_gate.js carregado');
 
 (function () {
   const OVERLAY_ID = 'arb-assistant-overlay-wrapper';
+  const EXCHANGE = 'GATE';
+  const GROUP_STORAGE_KEY = 'arbsync_group';
   let lastDomBookUpdate = 0;
   const domBookCache = {
     gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
     mexc: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null }
   };
+  let currentGroup = sessionStorage.getItem(GROUP_STORAGE_KEY) || '';
+  const latestPairs = { gate: '', mexc: '' };
 
   function ensureOverlay() {
     if (document.getElementById(OVERLAY_ID)) return;
@@ -48,6 +52,7 @@ console.log('🧩 content_gate.js carregado');
         setupDrag();
         setupResize();
         startDomLiquidityPolling();
+        registerTab();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -69,9 +74,60 @@ console.log('🧩 content_gate.js carregado');
     }
   }
 
+  function sendRuntimeMessage(message) {
+    return new Promise((resolve) => {
+      try {
+        chrome.runtime.sendMessage(message, resolve);
+      } catch (err) {
+        console.warn('Falha ao enviar mensagem para extensão:', err);
+        resolve(null);
+      }
+    });
+  }
+
+  function normalizeGroup(value) {
+    return String(value || '').trim();
+  }
+
+  function updateLinkStatus(status) {
+    const linkStatus = document.getElementById('linkStatus');
+    if (!linkStatus) return;
+    const group = normalizeGroup(status?.group || currentGroup);
+    if (!group) {
+      linkStatus.textContent = 'LINK: defina um grupo para vincular SPOT + FUTUROS';
+      return;
+    }
+    const hasGate = !!status?.hasGate;
+    const hasMexc = !!status?.hasMexc;
+    const gateLabel = `Gate ${hasGate ? '✅' : '❌'}`;
+    const mexcLabel = `MEXC ${hasMexc ? '✅' : '❌'}`;
+    linkStatus.textContent = `LINK: ${group} · ${gateLabel} | ${mexcLabel}`;
+  }
+
+  async function registerTab(groupValue) {
+    const normalized = normalizeGroup(groupValue ?? currentGroup);
+    currentGroup = normalized;
+    sessionStorage.setItem(GROUP_STORAGE_KEY, currentGroup);
+    const response = await sendRuntimeMessage({
+      type: 'REGISTER_TAB',
+      exchange: EXCHANGE,
+      group: currentGroup
+    });
+    if (response?.status) {
+      updateLinkStatus(response.status);
+    } else {
+      updateLinkStatus({ group: currentGroup, hasGate: true, hasMexc: false });
+    }
+  }
+
   function setupActions() {
     const saveBtn = document.getElementById('saveSettingsBtn');
     const testBtn = document.getElementById('testBtn');
+    const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
+    const arbGroupInput = document.getElementById('arbGroup');
+    const linkTabsBtn = document.getElementById('linkTabsBtn');
+    const usePairBtn = document.getElementById('usePairBtn');
+    let settingsTimer = null;
     const inputs = [
       'spotVolume',
       'futuresContractSize',
@@ -93,12 +149,20 @@ console.log('🧩 content_gate.js carregado');
       if (!input) return;
       input.addEventListener('input', () => {
         input.dataset.userEdited = 'true';
+        scheduleSettingsUpdate();
       });
     });
     const allowPartial = document.getElementById('allowPartialExecution');
     if (allowPartial) {
       allowPartial.addEventListener('change', () => {
         allowPartial.dataset.userEdited = 'true';
+        scheduleSettingsUpdate();
+      });
+    }
+    if (syncExecutionEnabled) {
+      syncExecutionEnabled.addEventListener('change', () => {
+        syncExecutionEnabled.dataset.userEdited = 'true';
+        scheduleSettingsUpdate();
       });
     }
     const openEnabled = document.getElementById('openEnabled');
@@ -107,6 +171,7 @@ console.log('🧩 content_gate.js carregado');
       if (!el) return;
       el.addEventListener('change', () => {
         el.dataset.userEdited = 'true';
+        scheduleSettingsUpdate();
       });
     });
     const readNumber = (id) => {
@@ -134,11 +199,27 @@ console.log('🧩 content_gate.js carregado');
         document.getElementById('allowPartialExecution')?.checked ?? false,
       testVolume: readNumber('testVolume'),
       enableLiveExecution: false,
+      syncTestExecution: syncExecutionEnabled?.checked ?? false,
       executionModes: {
         openEnabled: openEnabled?.checked ?? true,
         closeEnabled: closeEnabled?.checked ?? false
       }
     });
+
+    const sendSettingsNow = () => {
+      const settings = readSettings();
+      sendCommand({ action: 'UPDATE_SETTINGS', settings });
+    };
+
+    const scheduleSettingsUpdate = () => {
+      if (settingsTimer) {
+        clearTimeout(settingsTimer);
+      }
+      settingsTimer = setTimeout(() => {
+        sendSettingsNow();
+        settingsTimer = null;
+      }, 150);
+    };
 
     if (saveBtn) {
       saveBtn.addEventListener('click', () => {
@@ -149,28 +230,78 @@ console.log('🧩 content_gate.js carregado');
     if (testBtn) {
       testBtn.addEventListener('click', () => {
         const settings = readSettings();
-        const contractsPreview = Number(
-          document.getElementById('conversionStatus')?.dataset.contracts || 0
-        );
-        window.postMessage(
-          {
-            type: 'ARBSYNC_TEST_EXECUTION',
-            payload: {
-              spotVolume: settings.testVolume,
-              futuresContracts: settings.testVolume,
-              pairGate: testBtn.dataset.pairGate || '',
-              pairMexc: testBtn.dataset.pairMexc || '',
-              modes: settings.executionModes,
-              submitDelayMs: settings.submitDelayMs
+        const payload = {
+          spotVolume: settings.testVolume,
+          futuresContracts: settings.testVolume,
+          pairGate: testBtn.dataset.pairGate || '',
+          pairMexc: testBtn.dataset.pairMexc || '',
+          modes: settings.executionModes,
+          submitDelayMs: settings.submitDelayMs
+        };
+        const group = normalizeGroup(arbGroupInput?.value);
+        const shouldSync = syncExecutionEnabled?.checked ?? false;
+        if (shouldSync) {
+          sendRuntimeMessage({
+            type: 'SYNC_TEST_EXECUTION',
+            payload,
+            group
+          }).then((response) => {
+            if (response?.status) updateLinkStatus(response.status);
+            if (!response?.ok) {
+              const testStatus = document.getElementById('testStatus');
+              if (testStatus) {
+                const reason =
+                  response?.reason === 'NO_GROUP'
+                    ? 'defina um grupo para sincronizar'
+                    : 'aba SPOT/FUTUROS vinculada não encontrada';
+                testStatus.textContent = `TESTE: ${reason}`;
+              }
             }
-          },
-          '*'
-        );
+          });
+        } else {
+          window.postMessage(
+            {
+              type: 'ARBSYNC_TEST_EXECUTION',
+              payload
+            },
+            '*'
+          );
+        }
         sendCommand({ action: 'UPDATE_SETTINGS', settings });
         sendCommand({
           action: 'TEST_EXECUTION',
           volume: settings.testVolume
         });
+      });
+    }
+
+    if (arbGroupInput) {
+      arbGroupInput.value = currentGroup;
+    }
+
+    if (linkTabsBtn) {
+      linkTabsBtn.addEventListener('click', async () => {
+        const group = normalizeGroup(arbGroupInput?.value);
+        const response = await sendRuntimeMessage({
+          type: 'UPDATE_GROUP',
+          exchange: EXCHANGE,
+          group
+        });
+        currentGroup = group;
+        sessionStorage.setItem(GROUP_STORAGE_KEY, currentGroup);
+        updateLinkStatus(response?.status || { group, hasGate: true, hasMexc: false });
+      });
+    }
+
+    if (usePairBtn) {
+      usePairBtn.addEventListener('click', () => {
+        const suggestion = [latestPairs.gate, latestPairs.mexc]
+          .filter(Boolean)
+          .join('-');
+        if (arbGroupInput) {
+          arbGroupInput.value = suggestion || arbGroupInput.value;
+          arbGroupInput.focus();
+        }
       });
     }
   }
@@ -394,6 +525,18 @@ console.log('🧩 content_gate.js carregado');
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || !msg.type) return;
 
+    if (msg.type === 'RUN_TEST_EXECUTION') {
+      const payload = msg.payload || {};
+      window.postMessage(
+        {
+          type: 'ARBSYNC_TEST_EXECUTION',
+          payload
+        },
+        '*'
+      );
+      return;
+    }
+
     if (msg.type === 'CORE_STATUS') {
       setText('coreStatus', msg.ok ? 'CORE: conectado' : 'CORE: desconectado');
       return;
@@ -570,9 +713,15 @@ console.log('🧩 content_gate.js carregado');
         testBtn.dataset.pairGate = data.pairGate || '';
         testBtn.dataset.pairMexc = data.pairMexc || '';
       }
+      latestPairs.gate = data.pairGate || latestPairs.gate;
+      latestPairs.mexc = data.pairMexc || latestPairs.mexc;
       const allowPartial = document.getElementById('allowPartialExecution');
       if (allowPartial && allowPartial.dataset.userEdited !== 'true') {
         allowPartial.checked = !!settings.allowPartialExecution;
+      }
+      const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
+      if (syncExecutionEnabled && syncExecutionEnabled.dataset.userEdited !== 'true') {
+        syncExecutionEnabled.checked = !!settings.syncTestExecution;
       }
       if (settings.executionModes) {
         const openEnabled = document.getElementById('openEnabled');

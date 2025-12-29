@@ -127,6 +127,7 @@ console.log('🧩 content_gate.js carregado');
     const arbGroupInput = document.getElementById('arbGroup');
     const linkTabsBtn = document.getElementById('linkTabsBtn');
     const usePairBtn = document.getElementById('usePairBtn');
+    let settingsTimer = null;
     const inputs = [
       'spotVolume',
       'futuresContractSize',
@@ -148,17 +149,20 @@ console.log('🧩 content_gate.js carregado');
       if (!input) return;
       input.addEventListener('input', () => {
         input.dataset.userEdited = 'true';
+        scheduleSettingsUpdate();
       });
     });
     const allowPartial = document.getElementById('allowPartialExecution');
     if (allowPartial) {
       allowPartial.addEventListener('change', () => {
         allowPartial.dataset.userEdited = 'true';
+        scheduleSettingsUpdate();
       });
     }
     if (syncExecutionEnabled) {
       syncExecutionEnabled.addEventListener('change', () => {
         syncExecutionEnabled.dataset.userEdited = 'true';
+        scheduleSettingsUpdate();
       });
     }
     const openEnabled = document.getElementById('openEnabled');
@@ -167,6 +171,7 @@ console.log('🧩 content_gate.js carregado');
       if (!el) return;
       el.addEventListener('change', () => {
         el.dataset.userEdited = 'true';
+        scheduleSettingsUpdate();
       });
     });
     const readNumber = (id) => {
@@ -200,6 +205,21 @@ console.log('🧩 content_gate.js carregado');
         closeEnabled: closeEnabled?.checked ?? false
       }
     });
+
+    const sendSettingsNow = () => {
+      const settings = readSettings();
+      sendCommand({ action: 'UPDATE_SETTINGS', settings });
+    };
+
+    const scheduleSettingsUpdate = () => {
+      if (settingsTimer) {
+        clearTimeout(settingsTimer);
+      }
+      settingsTimer = setTimeout(() => {
+        sendSettingsNow();
+        settingsTimer = null;
+      }, 150);
+    };
 
     if (saveBtn) {
       saveBtn.addEventListener('click', () => {

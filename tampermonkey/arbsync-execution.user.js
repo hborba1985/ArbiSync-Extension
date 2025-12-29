@@ -84,12 +84,15 @@
       return;
     }
 
-    const qtyInput =
+    const getQtyInput = () =>
       document.querySelector('#mantine-0l3yrzgvy') ||
       document.querySelector(
         '#trading_dom input[inputmode="decimal"], #trading_dom input[type="text"][inputmode="decimal"]'
       ) ||
-      document.querySelector('input[placeholder*="Quantidade"], input[placeholder*="Amount"]');
+      document.querySelector(
+        'input[placeholder*="Quantidade"], input[placeholder*="Amount"]'
+      );
+    const qtyInput = getQtyInput();
     const symbolLabel = (context.symbol || '').toUpperCase();
     const modes = context.modes || {};
     const submitDelay = Number(context.submitDelayMs || 250);
@@ -147,8 +150,19 @@
     }
 
     await activateGateTab(finalAction.tab);
-    setNativeValue(qtyInput, String(volume));
-    dispatchInputEvents(qtyInput);
+    const refreshedQtyInput = getQtyInput();
+    if (!refreshedQtyInput) {
+      sendAlert('Não encontrei o campo Quantia na Gate.');
+      return;
+    }
+    setNativeValue(refreshedQtyInput, String(volume));
+    dispatchInputEvents(refreshedQtyInput);
+    const filled = await waitForInputValue(refreshedQtyInput, String(volume), 1200);
+    if (!filled) {
+      setNativeValue(refreshedQtyInput, String(volume));
+      dispatchInputEvents(refreshedQtyInput);
+      await waitForInputValue(refreshedQtyInput, String(volume), 1200);
+    }
     await delay(250);
     await delay(submitDelay);
     finalAction.button.click();
@@ -225,6 +239,16 @@
 
   function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  async function waitForInputValue(input, expected, timeoutMs = 1000) {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+      const current = String(input.value || '').trim();
+      if (current === expected) return true;
+      await delay(50);
+    }
+    return false;
   }
 
   function sendAlert(message) {

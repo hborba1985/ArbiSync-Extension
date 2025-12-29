@@ -1,5 +1,7 @@
 <div id="arb-panel">
-  <div class="title">ARBITRAGEM DETECTADA</div>
+  <div class="panel-header">
+    <div class="title">ARBITRAGEM DETECTADA</div>
+  </div>
 
   <div class="row">
     <span>Gate ASK</span>
@@ -16,7 +18,147 @@
     <b id="spread">--</b>
   </div>
 
-  <div class="status" id="coreStatus">CORE: aguardando...</div>
+  <div class="spread-panel">
+    <div class="spread-card">
+      <div class="spread-title">ENTRADA</div>
+      <div class="spread-value" id="spreadOpen">--</div>
+    </div>
+    <div class="spread-card">
+      <div class="spread-title">SAÍDA</div>
+      <div class="spread-value" id="spreadClose">--</div>
+    </div>
+  </div>
 
-  <button id="confirmBtn" disabled>CONFIRMAR EXECUÇÃO</button>
+  <div class="liquidity-panel">
+    <div class="liquidity-item" id="liquidityOpen">LIQUIDEZ ENTRADA: --</div>
+    <div class="liquidity-item" id="liquidityClose">LIQUIDEZ SAÍDA: --</div>
+  </div>
+  <div class="liquidity-values">
+    <div class="liquidity-value">
+      <span>Gate ASK vol (tokens)</span>
+      <b id="gateAskSize">--</b>
+    </div>
+    <div class="liquidity-price">
+      <span>Gate ASK preço</span>
+      <b id="gateAskPrice">--</b>
+    </div>
+    <div class="liquidity-value">
+      <span>Gate BID vol (tokens)</span>
+      <b id="gateBidSize">--</b>
+    </div>
+    <div class="liquidity-price">
+      <span>Gate BID preço</span>
+      <b id="gateBidPrice">--</b>
+    </div>
+    <div class="liquidity-value">
+      <span>MEXC BID vol (tokens)</span>
+      <b id="mexcBidSize">--</b>
+    </div>
+    <div class="liquidity-price">
+      <span>MEXC BID preço</span>
+      <b id="mexcBidPrice">--</b>
+    </div>
+    <div class="liquidity-value">
+      <span>MEXC ASK vol (tokens)</span>
+      <b id="mexcAskSize">--</b>
+    </div>
+    <div class="liquidity-price">
+      <span>MEXC ASK preço</span>
+      <b id="mexcAskPrice">--</b>
+    </div>
+  </div>
+
+  <div class="status" id="coreStatus">CORE: aguardando...</div>
+  <div class="status" id="riskStatus">FILTROS: --</div>
+  <div class="status" id="testStatus">TESTE: --</div>
+
+  <div class="section-title">Configurações</div>
+  <div class="field">
+    <label for="spotVolume">Volume SPOT</label>
+    <input id="spotVolume" type="number" step="0.0001" placeholder="Ex: 100" />
+  </div>
+  <div class="field">
+    <label for="futuresContractSize">Tamanho do contrato FUTUROS</label>
+    <input id="futuresContractSize" type="number" step="0.0001" placeholder="Ex: 1" />
+  </div>
+  <div class="field">
+    <label for="spreadMin">Spread mínimo (%)</label>
+    <input id="spreadMin" type="number" step="0.001" placeholder="Ex: 0.2" />
+  </div>
+  <div class="field">
+    <label for="minVolume">Volume mínimo</label>
+    <input id="minVolume" type="number" step="0.0001" placeholder="Ex: 10" />
+  </div>
+  <div class="field">
+    <label for="minLiquidity">Liquidez mínima (tokens)</label>
+    <input id="minLiquidity" type="number" step="0.0001" placeholder="Ex: 50" />
+  </div>
+  <div class="field">
+    <label for="refreshIntervalMs">Refresh do book (ms)</label>
+    <input id="refreshIntervalMs" type="number" step="50" placeholder="Ex: 1000" />
+  </div>
+  <div class="field">
+    <label for="submitDelayMs">Delay antes do clique (ms)</label>
+    <input id="submitDelayMs" type="number" step="50" placeholder="Ex: 250" />
+  </div>
+  <div class="field">
+    <label for="slippageMax">Slippage máximo (%)</label>
+    <input id="slippageMax" type="number" step="0.001" placeholder="Ex: 0.15" />
+  </div>
+  <div class="field">
+    <label for="slippageEstimate">Slippage estimado (%)</label>
+    <input id="slippageEstimate" type="number" step="0.001" placeholder="Ex: 0.05" />
+  </div>
+  <div class="field">
+    <label for="maxAlertsPerMinute">Alertas por minuto</label>
+    <input id="maxAlertsPerMinute" type="number" step="1" placeholder="Ex: 6" />
+  </div>
+  <div class="field">
+    <label for="exposurePerAsset">Exposição por ativo</label>
+    <input id="exposurePerAsset" type="number" step="0.0001" placeholder="Ex: 1000" />
+  </div>
+  <div class="field">
+    <label for="exposurePerExchange">Exposição por exchange</label>
+    <input id="exposurePerExchange" type="number" step="0.0001" placeholder="Ex: 2000" />
+  </div>
+  <div class="field">
+    <label for="exposureGlobal">Exposição global</label>
+    <input id="exposureGlobal" type="number" step="0.0001" placeholder="Ex: 5000" />
+  </div>
+  <div class="field checkbox">
+    <label>
+      <input id="allowPartialExecution" type="checkbox" />
+      Permitir execução parcial
+    </label>
+  </div>
+  <button id="saveSettingsBtn">Salvar configurações</button>
+
+  <div class="section-title">Conversão</div>
+  <div class="status" id="conversionStatus">FUTUROS: -- contratos</div>
+
+  <div class="section-title">Teste</div>
+  <div class="field">
+    <label for="testVolume">Volume teste</label>
+    <input id="testVolume" type="number" step="0.0001" placeholder="Ex: 25" />
+  </div>
+  <button id="testBtn" class="ghost">Teste de execução</button>
+
+  <div class="section-title">Execução sincronizada</div>
+  <div class="status" id="syncStatus">SYNC: aguardando Tampermonkey</div>
+  <div class="section-title">Modos de execução</div>
+  <div class="field checkbox">
+    <label>
+      <input id="openEnabled" type="checkbox" />
+      Abertura (OPEN)
+    </label>
+  </div>
+  <div class="status">SPOT: Comprar · FUTUROS: Abrir Short</div>
+  <div class="field checkbox">
+    <label>
+      <input id="closeEnabled" type="checkbox" />
+      Fechamento (CLOSE)
+    </label>
+  </div>
+  <div class="status">SPOT: Vender · FUTUROS: Fechar Short</div>
+  <div class="resizer" aria-hidden="true"></div>
 </div>

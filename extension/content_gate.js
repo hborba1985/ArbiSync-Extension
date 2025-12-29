@@ -4,6 +4,11 @@ console.log('🧩 content_gate.js carregado');
 
 (function () {
   const OVERLAY_ID = 'arb-assistant-overlay-wrapper';
+  let lastDomBookUpdate = 0;
+  const domBookCache = {
+    gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
+    mexc: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null }
+  };
 
   function ensureOverlay() {
     if (document.getElementById(OVERLAY_ID)) return;
@@ -36,6 +41,13 @@ console.log('🧩 content_gate.js carregado');
         setText('bidMexc', '--');
         setText('spread', '--');
         setText('coreStatus', 'CORE: aguardando...');
+        setText('riskStatus', 'FILTROS: --');
+        setText('conversionStatus', 'FUTUROS: -- contratos');
+
+        setupActions();
+        setupDrag();
+        setupResize();
+        startDomLiquidityPolling();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -48,10 +60,309 @@ console.log('🧩 content_gate.js carregado');
     el.textContent = value;
   }
 
-  function setButtonEnabled(enabled) {
-    const btn = document.getElementById('confirmBtn');
-    if (!btn) return;
-    btn.disabled = !enabled;
+  function sendCommand(command) {
+    try {
+      if (!chrome?.runtime?.id) return;
+      chrome.runtime.sendMessage({ type: 'UI_COMMAND', command });
+    } catch (err) {
+      console.warn('Falha ao enviar comando para extensão:', err);
+    }
+  }
+
+  function setupActions() {
+    const saveBtn = document.getElementById('saveSettingsBtn');
+    const testBtn = document.getElementById('testBtn');
+    const inputs = [
+      'spotVolume',
+      'futuresContractSize',
+      'spreadMin',
+      'minVolume',
+      'minLiquidity',
+      'refreshIntervalMs',
+      'submitDelayMs',
+      'slippageMax',
+      'slippageEstimate',
+      'maxAlertsPerMinute',
+      'exposurePerAsset',
+      'exposurePerExchange',
+      'exposureGlobal',
+      'testVolume'
+    ];
+    inputs.forEach((id) => {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.addEventListener('input', () => {
+        input.dataset.userEdited = 'true';
+      });
+    });
+    const allowPartial = document.getElementById('allowPartialExecution');
+    if (allowPartial) {
+      allowPartial.addEventListener('change', () => {
+        allowPartial.dataset.userEdited = 'true';
+      });
+    }
+    const openEnabled = document.getElementById('openEnabled');
+    const closeEnabled = document.getElementById('closeEnabled');
+    [openEnabled, closeEnabled].forEach((el) => {
+      if (!el) return;
+      el.addEventListener('change', () => {
+        el.dataset.userEdited = 'true';
+      });
+    });
+    const readNumber = (id) => {
+      const input = document.getElementById(id);
+      if (!input) return null;
+      const value = Number(input.value);
+      return Number.isFinite(value) ? value : null;
+    };
+
+    const readSettings = () => ({
+      spotVolume: readNumber('spotVolume'),
+      futuresContractSize: readNumber('futuresContractSize'),
+      spreadMin: readNumber('spreadMin'),
+      minVolume: readNumber('minVolume'),
+      minLiquidity: readNumber('minLiquidity'),
+      refreshIntervalMs: readNumber('refreshIntervalMs'),
+      submitDelayMs: readNumber('submitDelayMs'),
+      slippageMax: readNumber('slippageMax'),
+      slippageEstimate: readNumber('slippageEstimate'),
+      maxAlertsPerMinute: readNumber('maxAlertsPerMinute'),
+      exposurePerAsset: readNumber('exposurePerAsset'),
+      exposurePerExchange: readNumber('exposurePerExchange'),
+      exposureGlobal: readNumber('exposureGlobal'),
+      allowPartialExecution:
+        document.getElementById('allowPartialExecution')?.checked ?? false,
+      testVolume: readNumber('testVolume'),
+      enableLiveExecution: false,
+      executionModes: {
+        openEnabled: openEnabled?.checked ?? true,
+        closeEnabled: closeEnabled?.checked ?? false
+      }
+    });
+
+    if (saveBtn) {
+      saveBtn.addEventListener('click', () => {
+        sendCommand({ action: 'UPDATE_SETTINGS', settings: readSettings() });
+      });
+    }
+
+    if (testBtn) {
+      testBtn.addEventListener('click', () => {
+        const settings = readSettings();
+        const contractsPreview = Number(
+          document.getElementById('conversionStatus')?.dataset.contracts || 0
+        );
+        window.postMessage(
+          {
+            type: 'ARBSYNC_TEST_EXECUTION',
+            payload: {
+              spotVolume: settings.testVolume,
+              futuresContracts: settings.testVolume,
+              pairGate: testBtn.dataset.pairGate || '',
+              pairMexc: testBtn.dataset.pairMexc || '',
+              modes: settings.executionModes,
+              submitDelayMs: settings.submitDelayMs
+            }
+          },
+          '*'
+        );
+        sendCommand({ action: 'UPDATE_SETTINGS', settings });
+        sendCommand({
+          action: 'TEST_EXECUTION',
+          volume: settings.testVolume
+        });
+      });
+    }
+  }
+
+  function setupDrag() {
+    const panel = document.getElementById('arb-panel');
+    const handle = panel?.querySelector('.title');
+    if (!panel || !handle) return;
+
+    let dragging = false;
+    let offsetX = 0;
+    let offsetY = 0;
+
+    handle.addEventListener('mousedown', (event) => {
+      dragging = true;
+      const rect = panel.getBoundingClientRect();
+      offsetX = event.clientX - rect.left;
+      offsetY = event.clientY - rect.top;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      panel.style.cursor = 'grabbing';
+      document.body.style.userSelect = 'none';
+      event.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (event) => {
+      if (!dragging) return;
+      const nextLeft = Math.max(0, event.clientX - offsetX);
+      const nextTop = Math.max(0, event.clientY - offsetY);
+      panel.style.left = `${nextLeft}px`;
+      panel.style.top = `${nextTop}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      dragging = false;
+      panel.style.cursor = '';
+      document.body.style.userSelect = '';
+    });
+  }
+
+  function setupResize() {
+    const panel = document.getElementById('arb-panel');
+    const resizer = panel?.querySelector('.resizer');
+    if (!panel || !resizer) return;
+
+    let resizing = false;
+    let startX = 0;
+    let startY = 0;
+    let startWidth = 0;
+    let startHeight = 0;
+
+    resizer.addEventListener('mousedown', (event) => {
+      resizing = true;
+      const rect = panel.getBoundingClientRect();
+      startX = event.clientX;
+      startY = event.clientY;
+      startWidth = rect.width;
+      startHeight = rect.height;
+      panel.style.right = 'auto';
+      panel.style.bottom = 'auto';
+      document.body.style.userSelect = 'none';
+      event.preventDefault();
+    });
+
+    document.addEventListener('mousemove', (event) => {
+      if (!resizing) return;
+      const nextWidth = Math.max(260, startWidth + (event.clientX - startX));
+      const nextHeight = Math.max(240, startHeight + (event.clientY - startY));
+      panel.style.width = `${nextWidth}px`;
+      panel.style.height = `${nextHeight}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      resizing = false;
+      document.body.style.userSelect = '';
+    });
+  }
+
+  function parseNumber(value) {
+    if (value == null) return null;
+    let cleaned = String(value).replace(/[^\d.,kKmM-]/g, '');
+    let multiplier = 1;
+    const suffix = cleaned.slice(-1).toLowerCase();
+    if (suffix === 'k') {
+      multiplier = 1000;
+      cleaned = cleaned.slice(0, -1);
+    } else if (suffix === 'm') {
+      multiplier = 1_000_000;
+      cleaned = cleaned.slice(0, -1);
+    }
+    cleaned = cleaned.replace(/\.(?=.*\.)/g, '').replace(',', '.');
+    const parsed = Number(cleaned);
+    return Number.isFinite(parsed) ? parsed * multiplier : null;
+  }
+
+  function startDomLiquidityPolling() {
+    const selectors = {
+      askPrice:
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.bBfmlX',
+      askVolume:
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE',
+      bidPrice:
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.khGgGv',
+      bidVolume:
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE'
+    };
+
+    const last = {
+      askPrice: null,
+      askVolume: null,
+      bidPrice: null,
+      bidVolume: null
+    };
+
+    const applyDomValues = (values) => {
+      const askPrice = values.askPrice ?? last.askPrice;
+      const bidPrice = values.bidPrice ?? last.bidPrice;
+      const askVolume = values.askVolume ?? last.askVolume;
+      const bidVolume = values.bidVolume ?? last.bidVolume;
+
+      if (Number.isFinite(askPrice)) {
+        setText('askGate', askPrice.toFixed(11));
+        const askPriceEl = document.getElementById('gateAskPrice');
+        if (askPriceEl) askPriceEl.textContent = askPrice.toFixed(11);
+        last.askPrice = askPrice;
+        lastDomBookUpdate = Date.now();
+        domBookCache.gate.askPrice = askPrice;
+      }
+      if (Number.isFinite(bidPrice)) {
+        const bidEl = document.getElementById('gateBidPrice');
+        if (bidEl) bidEl.textContent = bidPrice.toFixed(11);
+        last.bidPrice = bidPrice;
+        lastDomBookUpdate = Date.now();
+        domBookCache.gate.bidPrice = bidPrice;
+      }
+      if (Number.isFinite(askVolume)) {
+        const askVolEl = document.getElementById('gateAskSize');
+        if (askVolEl) askVolEl.textContent = askVolume.toFixed(4);
+        last.askVolume = askVolume;
+        lastDomBookUpdate = Date.now();
+        domBookCache.gate.askVolume = askVolume;
+      }
+      if (Number.isFinite(bidVolume)) {
+        const bidVolEl = document.getElementById('gateBidSize');
+        if (bidVolEl) bidVolEl.textContent = bidVolume.toFixed(4);
+        last.bidVolume = bidVolume;
+        lastDomBookUpdate = Date.now();
+        domBookCache.gate.bidVolume = bidVolume;
+      }
+    };
+
+    const updateFromDom = () => {
+      const askPrice = parseNumber(
+        document.querySelector(selectors.askPrice)?.textContent
+      );
+      const askVolume = parseNumber(
+        document.querySelector(selectors.askVolume)?.textContent
+      );
+      const bidPrice = parseNumber(
+        document.querySelector(selectors.bidPrice)?.textContent
+      );
+      const bidVolume = parseNumber(
+        document.querySelector(selectors.bidVolume)?.textContent
+      );
+
+      applyDomValues({ askPrice, askVolume, bidPrice, bidVolume });
+
+      chrome.runtime?.sendMessage?.({
+        type: 'DOM_BOOK',
+        payload: {
+          source: 'gate',
+          askPrice,
+          askVolume,
+          bidPrice,
+          bidVolume
+        }
+      });
+    };
+
+    updateFromDom();
+    const getRefreshInterval = () => {
+      const value = Number(
+        document.getElementById('refreshIntervalMs')?.value
+      );
+      return Number.isFinite(value) && value > 0 ? value : 1000;
+    };
+    let intervalId = setInterval(updateFromDom, getRefreshInterval());
+    const refreshInput = document.getElementById('refreshIntervalMs');
+    refreshInput?.addEventListener('input', () => {
+      clearInterval(intervalId);
+      intervalId = setInterval(updateFromDom, getRefreshInterval());
+    });
   }
 
   if (document.readyState === 'loading') {
@@ -59,6 +370,26 @@ console.log('🧩 content_gate.js carregado');
   } else {
     ensureOverlay();
   }
+
+  window.addEventListener('message', (event) => {
+    if (!event?.data || event.data.type !== 'ARBSYNC_SYNC_READY') return;
+    const syncStatus = document.getElementById('syncStatus');
+    if (syncStatus) {
+      syncStatus.textContent = 'SYNC: Tampermonkey conectado';
+    }
+  });
+
+  window.addEventListener('message', (event) => {
+    if (!event?.data || event.data.type !== 'ARBSYNC_ALERT') return;
+    const testStatus = document.getElementById('testStatus');
+    const message = event.data.message || 'Falha na execução.';
+    if (testStatus) {
+      testStatus.textContent = `TESTE: ${message}`;
+    }
+    if (window.alert) {
+      window.alert(message);
+    }
+  });
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || !msg.type) return;
@@ -70,13 +401,222 @@ console.log('🧩 content_gate.js carregado');
 
     if (msg.type === 'CORE_DATA') {
       const data = msg.data || {};
+      const settings = data.settings || {};
 
       if (typeof data.askGate === 'number') setText('askGate', data.askGate.toFixed(11));
       if (typeof data.bidMexc === 'number') setText('bidMexc', data.bidMexc.toFixed(11));
       if (typeof data.spread === 'number') setText('spread', data.spread.toFixed(3) + '%');
+      const spreadOpen = document.getElementById('spreadOpen');
+      const spreadClose = document.getElementById('spreadClose');
+      if (spreadOpen && typeof data.spread === 'number') {
+        spreadOpen.textContent = `${data.spread.toFixed(3)}%`;
+        spreadOpen.classList.toggle('positive', data.spread >= 0);
+        spreadOpen.classList.toggle('negative', data.spread < 0);
+      }
+      if (
+        spreadClose &&
+        typeof data.bidGate === 'number' &&
+        typeof data.askMexc === 'number'
+      ) {
+        const closeSpread =
+          ((data.bidGate - data.askMexc) / data.askMexc) * 100;
+        spreadClose.textContent = `${closeSpread.toFixed(3)}%`;
+        spreadClose.classList.toggle('positive', closeSpread >= 0);
+        spreadClose.classList.toggle('negative', closeSpread < 0);
+      }
 
-      // Habilita o botão quando sinalizar oportunidade
-      setButtonEnabled(!!data.signal);
+      const liquidityOpen = document.getElementById('liquidityOpen');
+      const liquidityClose = document.getElementById('liquidityClose');
+      const gateAskSize = document.getElementById('gateAskSize');
+      const gateBidSize = document.getElementById('gateBidSize');
+      const mexcBidSize = document.getElementById('mexcBidSize');
+      const mexcAskSize = document.getElementById('mexcAskSize');
+      const gateAskPrice = document.getElementById('gateAskPrice');
+      const gateBidPrice = document.getElementById('gateBidPrice');
+      const mexcBidPrice = document.getElementById('mexcBidPrice');
+      const mexcAskPrice = document.getElementById('mexcAskPrice');
+      const minLiquidity = Number(settings.minLiquidity);
+      const hasMinLiquidity = Number.isFinite(minLiquidity) && minLiquidity > 0;
+      const formatLiquidity = (value) =>
+        Number.isFinite(value) ? value.toFixed(4) : '--';
+      const formatPrice = (value) =>
+        Number.isFinite(value) ? value.toFixed(11) : '--';
+      const setLiquidityStatus = (el, label, leftSize, rightSize) => {
+        if (!el) return;
+        el.classList.remove('positive', 'negative');
+        if (!hasMinLiquidity) {
+          el.textContent = `LIQUIDEZ ${label}: sem mínimo`;
+          return;
+        }
+        if (!Number.isFinite(leftSize) || !Number.isFinite(rightSize)) {
+          el.textContent = `LIQUIDEZ ${label}: aguardando`;
+          return;
+        }
+        const enough = leftSize >= minLiquidity && rightSize >= minLiquidity;
+        el.textContent = `LIQUIDEZ ${label}: ${enough ? 'OK' : 'INSUFICIENTE'} (${formatLiquidity(
+          leftSize
+        )}/${formatLiquidity(rightSize)})`;
+        el.classList.add(enough ? 'positive' : 'negative');
+      };
+      const gateAskQty =
+        domBookCache.gate.askVolume ?? Number(data.gateAskSize);
+      const gateBidQty =
+        domBookCache.gate.bidVolume ?? Number(data.gateBidSize);
+      const mexcBidQty =
+        domBookCache.mexc.bidVolume ?? Number(data.mexcBidSize);
+      const mexcAskQty =
+        domBookCache.mexc.askVolume ?? Number(data.mexcAskSize);
+      const gateAskPx = Number(data.askGate);
+      const gateBidPx = Number(data.bidGate);
+      const mexcBidPx = Number(data.bidMexc);
+      const mexcAskPx = Number(data.askMexc);
+      setLiquidityStatus(
+        liquidityOpen,
+        'ENTRADA',
+        gateAskQty,
+        mexcBidQty
+      );
+      setLiquidityStatus(
+        liquidityClose,
+        'SAÍDA',
+        gateBidQty,
+        mexcAskQty
+      );
+      const domFresh = Date.now() - lastDomBookUpdate < 3000;
+      if (!domFresh) {
+        if (gateAskSize && Number.isFinite(gateAskQty)) {
+          gateAskSize.textContent = formatLiquidity(gateAskQty);
+        }
+        if (gateBidSize && Number.isFinite(gateBidQty)) {
+          gateBidSize.textContent = formatLiquidity(gateBidQty);
+        }
+        if (mexcBidSize && Number.isFinite(mexcBidQty)) {
+          mexcBidSize.textContent = formatLiquidity(mexcBidQty);
+        }
+        if (mexcAskSize && Number.isFinite(mexcAskQty)) {
+          mexcAskSize.textContent = formatLiquidity(mexcAskQty);
+        }
+        if (gateAskPrice && Number.isFinite(gateAskPx)) {
+          gateAskPrice.textContent = formatPrice(gateAskPx);
+        }
+        if (gateBidPrice && Number.isFinite(gateBidPx)) {
+          gateBidPrice.textContent = formatPrice(gateBidPx);
+        }
+        if (mexcBidPrice && Number.isFinite(mexcBidPx)) {
+          mexcBidPrice.textContent = formatPrice(mexcBidPx);
+        }
+        if (mexcAskPrice && Number.isFinite(mexcAskPx)) {
+          mexcAskPrice.textContent = formatPrice(mexcAskPx);
+        }
+      }
+
+      const riskStatus = document.getElementById('riskStatus');
+      if (riskStatus) {
+        const reasons = data.alert?.reasons?.length
+          ? data.alert.reasons.join(', ')
+          : 'OK';
+        riskStatus.textContent = `FILTROS: ${reasons}`;
+      }
+
+      const testStatus = document.getElementById('testStatus');
+      if (testStatus && data.lastTestExecution?.at) {
+        const time = new Date(data.lastTestExecution.at).toLocaleTimeString();
+        const volume = data.lastTestExecution.volume ?? '--';
+        const status = data.lastTestExecution.status ?? 'PENDING';
+        testStatus.textContent = `TESTE: ${volume} @ ${time} (${status})`;
+      }
+
+      const conversionStatus = document.getElementById('conversionStatus');
+      if (conversionStatus) {
+        const contracts = data.alert?.futuresContracts ?? 0;
+        conversionStatus.textContent = `FUTUROS: ${contracts.toFixed(4)} contratos`;
+        conversionStatus.dataset.contracts = String(contracts);
+      }
+
+      const syncStatus = document.getElementById('syncStatus');
+      if (syncStatus) {
+        syncStatus.textContent = 'SYNC: pronto para Tampermonkey';
+      }
+
+      const panel = document.getElementById('arb-panel');
+      if (panel) {
+        panel.classList.toggle('signal', !!data.signal);
+      }
+
+      const updateInput = (id, value) => {
+        const input = document.getElementById(id);
+        if (!input) return;
+        if (input.dataset.userEdited === 'true') return;
+        if (value === null || value === undefined) return;
+        input.value = value;
+      };
+
+      updateInput('spotVolume', settings.spotVolume);
+      updateInput('futuresContractSize', settings.futuresContractSize);
+      updateInput('spreadMin', settings.spreadMin);
+      updateInput('minVolume', settings.minVolume);
+      updateInput('minLiquidity', settings.minLiquidity);
+      updateInput('refreshIntervalMs', settings.refreshIntervalMs);
+      updateInput('submitDelayMs', settings.submitDelayMs);
+      updateInput('slippageMax', settings.slippageMax);
+      updateInput('slippageEstimate', settings.slippageEstimate);
+      updateInput('maxAlertsPerMinute', settings.maxAlertsPerMinute);
+      updateInput('exposurePerAsset', settings.exposurePerAsset);
+      updateInput('exposurePerExchange', settings.exposurePerExchange);
+      updateInput('exposureGlobal', settings.exposureGlobal);
+      updateInput('testVolume', settings.testVolume);
+      const testBtn = document.getElementById('testBtn');
+      if (testBtn) {
+        testBtn.dataset.pairGate = data.pairGate || '';
+        testBtn.dataset.pairMexc = data.pairMexc || '';
+      }
+      const allowPartial = document.getElementById('allowPartialExecution');
+      if (allowPartial && allowPartial.dataset.userEdited !== 'true') {
+        allowPartial.checked = !!settings.allowPartialExecution;
+      }
+      if (settings.executionModes) {
+        const openEnabled = document.getElementById('openEnabled');
+        const closeEnabled = document.getElementById('closeEnabled');
+        if (openEnabled && openEnabled.dataset.userEdited !== 'true') {
+          openEnabled.checked = !!settings.executionModes.openEnabled;
+        }
+        if (closeEnabled && closeEnabled.dataset.userEdited !== 'true') {
+          closeEnabled.checked = !!settings.executionModes.closeEnabled;
+        }
+      }
+    }
+
+    if (msg.type === 'DOM_BOOK' && msg.payload?.source === 'mexc') {
+      const askPrice = Number(msg.payload.askPrice);
+      const bidPrice = Number(msg.payload.bidPrice);
+      const askVolume = Number(msg.payload.askVolume);
+      const bidVolume = Number(msg.payload.bidVolume);
+
+      const mexcAskPrice = document.getElementById('mexcAskPrice');
+      const mexcBidPrice = document.getElementById('mexcBidPrice');
+      const mexcAskSize = document.getElementById('mexcAskSize');
+      const mexcBidSize = document.getElementById('mexcBidSize');
+
+      if (mexcAskPrice && Number.isFinite(askPrice)) {
+        mexcAskPrice.textContent = askPrice.toFixed(11);
+        lastDomBookUpdate = Date.now();
+        domBookCache.mexc.askPrice = askPrice;
+      }
+      if (mexcBidPrice && Number.isFinite(bidPrice)) {
+        mexcBidPrice.textContent = bidPrice.toFixed(11);
+        lastDomBookUpdate = Date.now();
+        domBookCache.mexc.bidPrice = bidPrice;
+      }
+      if (mexcAskSize && Number.isFinite(askVolume)) {
+        mexcAskSize.textContent = askVolume.toFixed(4);
+        lastDomBookUpdate = Date.now();
+        domBookCache.mexc.askVolume = askVolume;
+      }
+      if (mexcBidSize && Number.isFinite(bidVolume)) {
+        mexcBidSize.textContent = bidVolume.toFixed(4);
+        lastDomBookUpdate = Date.now();
+        domBookCache.mexc.bidVolume = bidVolume;
+      }
     }
   });
 })();

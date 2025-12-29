@@ -13,6 +13,45 @@ export function startFeeds() {
   startMexcFutures();
 }
 
+function normalizeBookSize(entry) {
+  if (entry == null) return null;
+  if (Array.isArray(entry)) {
+    return Number(entry[1]);
+  }
+  if (typeof entry === 'object') {
+    return Number(
+      entry.size ??
+        entry.qty ??
+        entry.quantity ??
+        entry.vol ??
+        entry.volume ??
+        entry.amount ??
+        entry.q
+    );
+  }
+  return Number(entry);
+}
+
+function normalizeMexcDepthQuantity(entry) {
+  if (entry == null) return null;
+  if (Array.isArray(entry)) {
+    if (entry.length >= 3) return Number(entry[2]);
+    return Number(entry[1]);
+  }
+  if (typeof entry === 'object') {
+    return Number(entry.quantity ?? entry.qty ?? entry.size ?? entry.q);
+  }
+  return Number(entry);
+}
+
+function normalizeFuturesSize(size) {
+  const contractSize =
+    state.settings?.futuresContractSize ?? cfg.FUTURES_CONTRACT_SIZE;
+  if (!Number.isFinite(size)) return size;
+  if (!Number.isFinite(contractSize) || contractSize <= 0) return size;
+  return size * contractSize;
+}
+
 /* ========================================================= */
 /* ====================== GATE SPOT ======================== */
 /* ========================================================= */
@@ -32,17 +71,64 @@ function startGateSpot() {
         payload: [cfg.PAIR_GATE]
       })
     );
+    ws.send(
+      JSON.stringify({
+        time: Math.floor(Date.now() / 1000),
+        channel: 'spot.order_book',
+        event: 'subscribe',
+        payload: [cfg.PAIR_GATE, '100ms', '1']
+      })
+    );
   });
 
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
 
-      // spot.tickers retorna result com lowest_ask
-      if (msg.result && msg.result.lowest_ask) {
+      // spot.tickers retorna result com lowest_ask e highest_bid
+      if (msg.result?.lowest_ask) {
         const ask = Number(msg.result.lowest_ask);
         if (!Number.isNaN(ask)) {
           state.askGate = ask;
+        }
+      }
+      const rawAskSize =
+        msg.result?.lowest_ask_size ??
+        msg.result?.lowest_ask_qty ??
+        msg.result?.ask_size;
+      if (rawAskSize != null) {
+        const askSize = Number(rawAskSize);
+        if (!Number.isNaN(askSize)) {
+          state.gateAskSize = askSize;
+        }
+      }
+      if (msg.result?.highest_bid) {
+        const bid = Number(msg.result.highest_bid);
+        if (!Number.isNaN(bid)) {
+          state.bidGate = bid;
+        }
+      }
+      const rawBidSize =
+        msg.result?.highest_bid_size ??
+        msg.result?.highest_bid_qty ??
+        msg.result?.bid_size;
+      if (rawBidSize != null) {
+        const bidSize = Number(rawBidSize);
+        if (!Number.isNaN(bidSize)) {
+          state.gateBidSize = bidSize;
+        }
+      }
+
+      if (msg.channel === 'spot.order_book' && msg.result) {
+        const asks = msg.result.asks ?? msg.result.a;
+        const bids = msg.result.bids ?? msg.result.b;
+        const askSize = normalizeBookSize(asks?.[0]);
+        if (!Number.isNaN(askSize)) {
+          state.gateAskSize = askSize;
+        }
+        const bidSize = normalizeBookSize(bids?.[0]);
+        if (!Number.isNaN(bidSize)) {
+          state.gateBidSize = bidSize;
         }
       }
     } catch (err) {
@@ -79,18 +165,69 @@ function startMexcFutures() {
         }
       })
     );
+    ws.send(
+      JSON.stringify({
+        method: 'sub.depth',
+        param: {
+          symbol: cfg.PAIR_MEXC,
+          level: 1
+        }
+      })
+    );
   });
 
   ws.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
 
-      // ticker da MEXC futures: data.bid ou data.bid1 (pode vir como string)
+      // ticker da MEXC futures: data.bid/bid1 e data.ask/ask1 (pode vir como string)
       const rawBid = msg?.data?.bid ?? msg?.data?.bid1;
       if (rawBid != null) {
         const bid = Number(rawBid);
         if (!Number.isNaN(bid)) {
           state.bidMexc = bid;
+        }
+      }
+      const rawBidSize =
+        msg?.data?.bidSize ??
+        msg?.data?.bid1Size ??
+        msg?.data?.bidVol ??
+        msg?.data?.bidQty;
+      if (rawBidSize != null) {
+        const bidSize = normalizeFuturesSize(Number(rawBidSize));
+        if (!Number.isNaN(bidSize)) {
+          state.mexcBidSize = bidSize;
+        }
+      }
+      const rawAsk = msg?.data?.ask ?? msg?.data?.ask1;
+      if (rawAsk != null) {
+        const ask = Number(rawAsk);
+        if (!Number.isNaN(ask)) {
+          state.askMexc = ask;
+        }
+      }
+      const rawAskSize =
+        msg?.data?.askSize ??
+        msg?.data?.ask1Size ??
+        msg?.data?.askVol ??
+        msg?.data?.askQty;
+      if (rawAskSize != null) {
+        const askSize = normalizeFuturesSize(Number(rawAskSize));
+        if (!Number.isNaN(askSize)) {
+          state.mexcAskSize = askSize;
+        }
+      }
+
+      if (msg?.data?.asks || msg?.data?.bids) {
+        const depthAskBase = normalizeMexcDepthQuantity(msg.data?.asks?.[0]);
+        const depthAskSize = normalizeFuturesSize(depthAskBase);
+        if (!Number.isNaN(depthAskSize)) {
+          state.mexcAskSize = depthAskSize;
+        }
+        const depthBidBase = normalizeMexcDepthQuantity(msg.data?.bids?.[0]);
+        const depthBidSize = normalizeFuturesSize(depthBidBase);
+        if (!Number.isNaN(depthBidSize)) {
+          state.mexcBidSize = depthBidSize;
         }
       }
     } catch (err) {

@@ -123,6 +123,7 @@
 
     let buyMatch = findGateMatch(actionLabel);
     let sellMatch = findGateMatch(closeLabel);
+    let finalAction = null;
 
     if (needsBuy && !buyMatch) {
       await activateGateTab('buy');
@@ -134,25 +135,23 @@
     }
 
     if (needsBuy && buyMatch) {
-      await activateGateTab('buy');
-      setNativeValue(qtyInput, String(volume));
-      dispatchInputEvents(qtyInput);
-      await delay(submitDelay);
-      buyMatch.click();
+      finalAction = { tab: 'buy', button: buyMatch, label: 'Compra' };
+    } else if (needsSell && sellMatch) {
+      finalAction = { tab: 'sell', button: sellMatch, label: 'Venda' };
     }
-    if (needsBuy && !buyMatch) {
-      sendAlert('Não encontrei "Compra". Verifique os botões da Gate.');
+
+    if (!finalAction) {
+      if (needsBuy) sendAlert('Não encontrei "Compra". Verifique os botões da Gate.');
+      if (needsSell) sendAlert('Não encontrei "Venda". Verifique os botões da Gate.');
+      return;
     }
-    if (needsSell && sellMatch) {
-      await activateGateTab('sell');
-      setNativeValue(qtyInput, String(volume));
-      dispatchInputEvents(qtyInput);
-      await delay(submitDelay);
-      sellMatch.click();
-    }
-    if (needsSell && !sellMatch) {
-      sendAlert('Não encontrei "Venda". Verifique os botões da Gate.');
-    }
+
+    await activateGateTab(finalAction.tab);
+    setNativeValue(qtyInput, String(volume));
+    dispatchInputEvents(qtyInput);
+    await delay(250);
+    await delay(submitDelay);
+    finalAction.button.click();
   }
 
   async function executeMexcFutures(contracts, context = {}) {
@@ -246,7 +245,7 @@
     const button = document.querySelector(selector);
     if (button) {
       button.click();
-      await delay(150);
+      await delay(350);
     }
   }
 
@@ -262,4 +261,3 @@
     return [`${verb} ${symbolLabel}`, verb, `${fallback} ${symbolLabel}`, fallback];
   }
 })();
-    const submitDelay = Number(context.submitDelayMs || 250);

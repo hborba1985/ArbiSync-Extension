@@ -139,6 +139,17 @@
       Permitir execução parcial
     </label>
   </div>
+  <div class="section-title">Execução automática</div>
+  <div class="field checkbox">
+    <label>
+      <input id="enableLiveExecution" type="checkbox" />
+      Execução automática
+    </label>
+  </div>
+  <div class="field">
+    <label for="autoExecutionCooldownMs">Cooldown automático (ms)</label>
+    <input id="autoExecutionCooldownMs" type="number" step="100" placeholder="Ex: 7000" />
+  </div>
   <button id="saveSettingsBtn">Salvar configurações</button>
 
   <div class="section-title">Conversão</div>
@@ -171,12 +182,6 @@
   <div class="section-title">Modos de execução</div>
   <div class="field checkbox">
     <label>
-      <input id="enableLiveExecution" type="checkbox" />
-      Execução automática
-    </label>
-  </div>
-  <div class="field checkbox">
-    <label>
       <input id="openEnabled" type="checkbox" />
       Abertura (OPEN)
     </label>
@@ -189,5 +194,36 @@
     </label>
   </div>
   <div class="status">SPOT: Vender · FUTUROS: Fechar Short</div>
+  <div class="section-title">Painel da posição</div>
+  <div class="position-summary">
+    <div class="position-row">
+      <span>Volume SPOT</span>
+      <b id="positionSpotVolume">--</b>
+    </div>
+    <div class="position-row">
+      <span>Contratos FUTUROS</span>
+      <b id="positionFuturesContracts">--</b>
+    </div>
+  </div>
+  <div class="position-cards">
+    <div class="position-card">
+      <div class="position-title">Última abertura</div>
+      <div class="position-detail"><span>Gate preço</span><b id="openGatePrice">--</b></div>
+      <div class="position-detail"><span>MEXC preço</span><b id="openMexcPrice">--</b></div>
+      <div class="position-detail"><span>Volume</span><b id="openVolume">--</b></div>
+      <div class="position-detail"><span>Spread</span><b id="openSpread">--</b></div>
+    </div>
+    <div class="position-card">
+      <div class="position-title">Último fechamento</div>
+      <div class="position-detail"><span>Gate preço</span><b id="closeGatePrice">--</b></div>
+      <div class="position-detail"><span>MEXC preço</span><b id="closeMexcPrice">--</b></div>
+      <div class="position-detail"><span>Volume</span><b id="closeVolume">--</b></div>
+      <div class="position-detail"><span>Spread</span><b id="closeSpread">--</b></div>
+    </div>
+  </div>
+  <div class="position-total">
+    <span>Spread geral da posição</span>
+    <b id="positionTotalSpread">--</b>
+  </div>
   <div class="resizer" aria-hidden="true"></div>
 </div>

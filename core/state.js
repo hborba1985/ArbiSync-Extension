@@ -32,6 +32,7 @@ export default {
     testVolume: null,
     slippageEstimate: null,
     enableLiveExecution: false,
+    autoExecutionCooldownMs: null,
     syncTestExecution: false,
     executionModes: {
       openEnabled: true,

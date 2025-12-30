@@ -32,6 +32,7 @@ state.settings = {
   testVolume: cfg.MIN_VOLUME,
   slippageEstimate: 0,
   enableLiveExecution: false,
+  autoExecutionCooldownMs: cfg.AUTO_EXECUTION_COOLDOWN_MS,
   executionModes: {
     openEnabled: true,
     closeEnabled: false

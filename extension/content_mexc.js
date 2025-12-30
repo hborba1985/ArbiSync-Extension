@@ -136,6 +136,7 @@ console.log('🧩 content_mexc.js carregado');
       'minVolume',
       'minLiquidityOpen',
       'minLiquidityClose',
+      'autoExecutionCooldownMs',
       'refreshIntervalMs',
       'submitDelayMs',
       'slippageMax',
@@ -210,6 +211,7 @@ console.log('🧩 content_mexc.js carregado');
         document.getElementById('allowPartialExecution')?.checked ?? false,
       testVolume: readNumber('testVolume'),
       enableLiveExecution: liveExecution?.checked ?? false,
+      autoExecutionCooldownMs: readNumber('autoExecutionCooldownMs'),
       syncTestExecution: syncExecutionEnabled?.checked ?? false,
       executionModes: {
         openEnabled: openEnabled?.checked ?? true,
@@ -406,6 +408,68 @@ console.log('🧩 content_mexc.js carregado');
     cleaned = cleaned.replace(/\.(?=.*\.)/g, '').replace(',', '.');
     const parsed = Number(cleaned);
     return Number.isFinite(parsed) ? parsed * multiplier : null;
+  }
+
+  function computeFuturesContracts(volume, contractSize) {
+    if (!contractSize || contractSize <= 0) return 0;
+    return volume / contractSize;
+  }
+
+  function formatNumber(value, digits = 4) {
+    return Number.isFinite(value) ? value.toFixed(digits) : '--';
+  }
+
+  const executionLog = { open: null, close: null };
+
+  function updatePositionPanel(snapshot) {
+    if (!snapshot) return;
+    const { spotVolume, futuresContracts } = snapshot;
+    const spotEl = document.getElementById('positionSpotVolume');
+    const futuresEl = document.getElementById('positionFuturesContracts');
+    if (spotEl) spotEl.textContent = formatNumber(spotVolume, 4);
+    if (futuresEl) futuresEl.textContent = formatNumber(futuresContracts, 4);
+
+    const open = executionLog.open;
+    const close = executionLog.close;
+    const openGate = document.getElementById('openGatePrice');
+    const openMexc = document.getElementById('openMexcPrice');
+    const openVolume = document.getElementById('openVolume');
+    const openSpread = document.getElementById('openSpread');
+    const closeGate = document.getElementById('closeGatePrice');
+    const closeMexc = document.getElementById('closeMexcPrice');
+    const closeVolume = document.getElementById('closeVolume');
+    const closeSpread = document.getElementById('closeSpread');
+    const totalSpread = document.getElementById('positionTotalSpread');
+
+    if (openGate) openGate.textContent = formatNumber(open?.gatePrice, 11);
+    if (openMexc) openMexc.textContent = formatNumber(open?.mexcPrice, 11);
+    if (openVolume) openVolume.textContent = formatNumber(open?.spotVolume, 4);
+    if (openSpread) openSpread.textContent = formatNumber(open?.spread, 3) + '%';
+    if (closeGate) closeGate.textContent = formatNumber(close?.gatePrice, 11);
+    if (closeMexc) closeMexc.textContent = formatNumber(close?.mexcPrice, 11);
+    if (closeVolume) closeVolume.textContent = formatNumber(close?.spotVolume, 4);
+    if (closeSpread) closeSpread.textContent = formatNumber(close?.spread, 3) + '%';
+
+    const total =
+      Number.isFinite(open?.spread) && Number.isFinite(close?.spread)
+        ? open.spread + close.spread
+        : null;
+    if (totalSpread) {
+      totalSpread.textContent = Number.isFinite(total)
+        ? `${total.toFixed(3)}%`
+        : '--';
+    }
+  }
+
+  function syncExecutionLog(payload) {
+    if (!payload) return;
+    if (payload.open) {
+      executionLog.open = payload.open;
+    }
+    if (payload.close) {
+      executionLog.close = payload.close;
+    }
+    updatePositionPanel(payload.snapshot || {});
   }
 
   function startDomLiquidityPolling() {
@@ -732,6 +796,7 @@ console.log('🧩 content_mexc.js carregado');
       updateInput('minVolume', settings.minVolume);
       updateInput('minLiquidityOpen', settings.minLiquidityOpen);
       updateInput('minLiquidityClose', settings.minLiquidityClose);
+      updateInput('autoExecutionCooldownMs', settings.autoExecutionCooldownMs);
       updateInput('refreshIntervalMs', settings.refreshIntervalMs);
       updateInput('submitDelayMs', settings.submitDelayMs);
       updateInput('slippageMax', settings.slippageMax);
@@ -770,6 +835,15 @@ console.log('🧩 content_mexc.js carregado');
           closeEnabled.checked = !!settings.executionModes.closeEnabled;
         }
       }
+
+      updatePositionPanel({
+        spotVolume: Number(settings.spotVolume),
+        futuresContracts: Number(data.alert?.futuresContracts) ||
+          computeFuturesContracts(
+            Number(settings.spotVolume),
+            Number(settings.futuresContractSize)
+          )
+      });
     }
 
     if (msg.type === 'DOM_BOOK' && msg.payload?.source === 'gate') {
@@ -803,6 +877,10 @@ console.log('🧩 content_mexc.js carregado');
         lastDomBookUpdate = Date.now();
         domBookCache.gate.bidVolume = bidVolume;
       }
+    }
+
+    if (msg.type === 'EXECUTION_LOG') {
+      syncExecutionLog(msg.payload);
     }
   });
 })();

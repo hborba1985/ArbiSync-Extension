@@ -6,6 +6,7 @@ export default {
   SPREAD_MIN_CLOSE: 0.2,    // Percentual mínimo de arbitragem (fechamento)
   COOLDOWN_MS: 7000,        // Cooldown entre sinais
   PERSISTENCE_MS: 300,      // Tempo mínimo (ms) acima do spread
+  AUTO_EXECUTION_COOLDOWN_MS: 7000,
 
   ORDER_VOLUME: 50,
   MIN_VOLUME: 10,

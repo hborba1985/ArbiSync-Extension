@@ -3,6 +3,7 @@
 let ws = null;
 let reconnectTimer = null;
 const tabLinks = new Map();
+let coreStatusOk = false;
 
 function normalizeGroup(group) {
   return String(group || '').trim();
@@ -70,6 +71,7 @@ function connectWs() {
 
     ws.onopen = async () => {
       console.log('🟢 [BG] Conectado ao CORE ws://localhost:8787');
+      coreStatusOk = true;
       await broadcastToTargetTabs({ type: 'CORE_STATUS', ok: true });
     };
 
@@ -85,12 +87,14 @@ function connectWs() {
 
     ws.onclose = async () => {
       console.log('⚠️ [BG] WS do CORE fechado. Reconectando em 2s...');
+      coreStatusOk = false;
       await broadcastToTargetTabs({ type: 'CORE_STATUS', ok: false });
       reconnectTimer = setTimeout(connectWs, 2000);
     };
 
     ws.onerror = async () => {
       console.log('❌ [BG] Erro no WS do CORE. Reconectando em 2s...');
+      coreStatusOk = false;
       await broadcastToTargetTabs({ type: 'CORE_STATUS', ok: false });
 
       try { ws.close(); } catch {}
@@ -147,6 +151,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
   if (message.type === 'REQUEST_GROUP_STATUS') {
     sendResponse({ ok: true, status: getGroupStatus(message.group) });
+    return;
+  }
+
+  if (message.type === 'REQUEST_CORE_STATUS') {
+    sendResponse({ ok: coreStatusOk });
     return;
   }
 

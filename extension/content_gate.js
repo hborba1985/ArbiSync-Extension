@@ -53,6 +53,13 @@ console.log('🧩 content_gate.js carregado');
         setupDrag();
         setupResize();
         startDomLiquidityPolling();
+        sendRuntimeMessage({ type: 'REQUEST_CORE_STATUS' }).then((response) => {
+          if (response?.ok === true) {
+            setText('coreStatus', 'CORE: conectado');
+          } else if (response?.ok === false) {
+            setText('coreStatus', 'CORE: desconectado');
+          }
+        });
         registerTab();
       })
       .catch((err) => {

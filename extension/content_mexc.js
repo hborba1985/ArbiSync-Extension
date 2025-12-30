@@ -131,9 +131,11 @@ console.log('🧩 content_mexc.js carregado');
     const inputs = [
       'spotVolume',
       'futuresContractSize',
-      'spreadMin',
+      'spreadMinOpen',
+      'spreadMinClose',
       'minVolume',
-      'minLiquidity',
+      'minLiquidityOpen',
+      'minLiquidityClose',
       'refreshIntervalMs',
       'submitDelayMs',
       'slippageMax',
@@ -156,6 +158,13 @@ console.log('🧩 content_mexc.js carregado');
     if (allowPartial) {
       allowPartial.addEventListener('change', () => {
         allowPartial.dataset.userEdited = 'true';
+        scheduleSettingsUpdate();
+      });
+    }
+    const liveExecution = document.getElementById('enableLiveExecution');
+    if (liveExecution) {
+      liveExecution.addEventListener('change', () => {
+        liveExecution.dataset.userEdited = 'true';
         scheduleSettingsUpdate();
       });
     }
@@ -184,9 +193,11 @@ console.log('🧩 content_mexc.js carregado');
     const readSettings = () => ({
       spotVolume: readNumber('spotVolume'),
       futuresContractSize: readNumber('futuresContractSize'),
-      spreadMin: readNumber('spreadMin'),
+      spreadMinOpen: readNumber('spreadMinOpen'),
+      spreadMinClose: readNumber('spreadMinClose'),
       minVolume: readNumber('minVolume'),
-      minLiquidity: readNumber('minLiquidity'),
+      minLiquidityOpen: readNumber('minLiquidityOpen'),
+      minLiquidityClose: readNumber('minLiquidityClose'),
       refreshIntervalMs: readNumber('refreshIntervalMs'),
       submitDelayMs: readNumber('submitDelayMs'),
       slippageMax: readNumber('slippageMax'),
@@ -198,7 +209,7 @@ console.log('🧩 content_mexc.js carregado');
       allowPartialExecution:
         document.getElementById('allowPartialExecution')?.checked ?? false,
       testVolume: readNumber('testVolume'),
-      enableLiveExecution: false,
+      enableLiveExecution: liveExecution?.checked ?? false,
       syncTestExecution: syncExecutionEnabled?.checked ?? false,
       executionModes: {
         openEnabled: openEnabled?.checked ?? true,
@@ -592,16 +603,20 @@ console.log('🧩 content_mexc.js carregado');
       const gateBidPrice = document.getElementById('gateBidPrice');
       const mexcBidPrice = document.getElementById('mexcBidPrice');
       const mexcAskPrice = document.getElementById('mexcAskPrice');
-      const minLiquidity = Number(settings.minLiquidity);
-      const hasMinLiquidity = Number.isFinite(minLiquidity) && minLiquidity > 0;
+      const minLiquidityOpen = Number(
+        settings.minLiquidityOpen ?? settings.minLiquidity
+      );
+      const minLiquidityClose = Number(
+        settings.minLiquidityClose ?? settings.minLiquidity
+      );
       const formatLiquidity = (value) =>
         Number.isFinite(value) ? value.toFixed(4) : '--';
       const formatPrice = (value) =>
         Number.isFinite(value) ? value.toFixed(11) : '--';
-      const setLiquidityStatus = (el, label, leftSize, rightSize) => {
+      const setLiquidityStatus = (el, label, leftSize, rightSize, minLiquidity) => {
         if (!el) return;
         el.classList.remove('positive', 'negative');
-        if (!hasMinLiquidity) {
+        if (!Number.isFinite(minLiquidity) || minLiquidity <= 0) {
           el.textContent = `LIQUIDEZ ${label}: sem mínimo`;
           return;
         }
@@ -631,13 +646,15 @@ console.log('🧩 content_mexc.js carregado');
         liquidityOpen,
         'ENTRADA',
         gateAskQty,
-        mexcBidQty
+        mexcBidQty,
+        minLiquidityOpen
       );
       setLiquidityStatus(
         liquidityClose,
         'SAÍDA',
         gateBidQty,
-        mexcAskQty
+        mexcAskQty,
+        minLiquidityClose
       );
       const domFresh = Date.now() - lastDomBookUpdate < 3000;
       if (!domFresh) {
@@ -710,9 +727,11 @@ console.log('🧩 content_mexc.js carregado');
 
       updateInput('spotVolume', settings.spotVolume);
       updateInput('futuresContractSize', settings.futuresContractSize);
-      updateInput('spreadMin', settings.spreadMin);
+      updateInput('spreadMinOpen', settings.spreadMinOpen);
+      updateInput('spreadMinClose', settings.spreadMinClose);
       updateInput('minVolume', settings.minVolume);
-      updateInput('minLiquidity', settings.minLiquidity);
+      updateInput('minLiquidityOpen', settings.minLiquidityOpen);
+      updateInput('minLiquidityClose', settings.minLiquidityClose);
       updateInput('refreshIntervalMs', settings.refreshIntervalMs);
       updateInput('submitDelayMs', settings.submitDelayMs);
       updateInput('slippageMax', settings.slippageMax);
@@ -732,6 +751,10 @@ console.log('🧩 content_mexc.js carregado');
       const allowPartialInput = document.getElementById('allowPartialExecution');
       if (allowPartialInput && allowPartialInput.dataset.userEdited !== 'true') {
         allowPartialInput.checked = !!settings.allowPartialExecution;
+      }
+      const liveExecution = document.getElementById('enableLiveExecution');
+      if (liveExecution && liveExecution.dataset.userEdited !== 'true') {
+        liveExecution.checked = !!settings.enableLiveExecution;
       }
       const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
       if (syncExecutionEnabled && syncExecutionEnabled.dataset.userEdited !== 'true') {

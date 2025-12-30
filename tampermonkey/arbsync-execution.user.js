@@ -124,47 +124,35 @@
       );
     };
 
-    let buyMatch = findGateMatch(actionLabel);
-    let sellMatch = findGateMatch(closeLabel);
-    let finalAction = null;
-
-    if (needsBuy && !buyMatch) {
-      await activateGateTab('buy');
-      buyMatch = findGateMatch(actionLabel);
+    const actions = [];
+    if (needsBuy) {
+      actions.push({ tab: 'buy', labels: actionLabel, alert: 'Compra' });
     }
-    if (needsSell && !sellMatch) {
-      await activateGateTab('sell');
-      sellMatch = findGateMatch(closeLabel);
+    if (needsSell) {
+      actions.push({ tab: 'sell', labels: closeLabel, alert: 'Venda' });
     }
 
-    if (needsBuy && buyMatch) {
-      finalAction = { tab: 'buy', button: buyMatch, label: 'Compra' };
-    } else if (needsSell && sellMatch) {
-      finalAction = { tab: 'sell', button: sellMatch, label: 'Venda' };
-    }
-
-    if (!finalAction) {
-      if (needsBuy) sendAlert('Não encontrei "Compra". Verifique os botões da Gate.');
-      if (needsSell) sendAlert('Não encontrei "Venda". Verifique os botões da Gate.');
+    if (actions.length === 0) {
       return;
     }
 
-    await activateGateTab(finalAction.tab);
-    const refreshedAction = findGateMatch(
-      finalAction.tab === 'buy' ? actionLabel : closeLabel
-    );
-    if (refreshedAction) {
-      finalAction.button = refreshedAction;
+    for (const action of actions) {
+      await activateGateTab(action.tab);
+      const actionButton = findGateMatch(action.labels);
+      if (!actionButton) {
+        sendAlert(`Não encontrei "${action.alert}". Verifique os botões da Gate.`);
+        continue;
+      }
+      const refreshedQtyInput = getQtyInput();
+      if (!refreshedQtyInput) {
+        sendAlert('Não encontrei o campo Quantia na Gate.');
+        return;
+      }
+      setNativeValue(refreshedQtyInput, String(volume));
+      dispatchInputEvents(refreshedQtyInput);
+      await delay(submitDelay);
+      actionButton.click();
     }
-    const refreshedQtyInput = getQtyInput();
-    if (!refreshedQtyInput) {
-      sendAlert('Não encontrei o campo Quantia na Gate.');
-      return;
-    }
-    setNativeValue(refreshedQtyInput, String(volume));
-    dispatchInputEvents(refreshedQtyInput);
-    await delay(submitDelay);
-    finalAction.button.click();
   }
 
   async function executeMexcFutures(contracts, context = {}) {

@@ -14,9 +14,11 @@ export default {
   alert: null,
   lastTestExecution: null,
   settings: {
-    spreadMin: null,
+    spreadMinOpen: null,
+    spreadMinClose: null,
     minVolume: null,
-    minLiquidity: null,
+    minLiquidityOpen: null,
+    minLiquidityClose: null,
     refreshIntervalMs: 1,
     submitDelayMs: 1,
     slippageMax: null,

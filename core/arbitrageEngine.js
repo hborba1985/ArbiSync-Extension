@@ -8,7 +8,10 @@ const alertTimestamps = [];
 
 function getSettings() {
   return {
-    SPREAD_MIN: state.settings.spreadMin ?? cfg.SPREAD_MIN,
+    SPREAD_MIN:
+      state.settings.spreadMinOpen ??
+      state.settings.spreadMin ??
+      cfg.SPREAD_MIN_OPEN,
     MIN_VOLUME: state.settings.minVolume ?? cfg.MIN_VOLUME,
     SLIPPAGE_MAX: state.settings.slippageMax ?? cfg.SLIPPAGE_MAX,
     MAX_ALERTS_PER_MINUTE:

@@ -14,9 +14,11 @@ startBridge(8787);
 
 state.settings = {
   ...state.settings,
-  spreadMin: cfg.SPREAD_MIN,
+  spreadMinOpen: cfg.SPREAD_MIN_OPEN,
+  spreadMinClose: cfg.SPREAD_MIN_CLOSE,
   minVolume: cfg.MIN_VOLUME,
-  minLiquidity: cfg.MIN_LIQUIDITY,
+  minLiquidityOpen: cfg.MIN_LIQUIDITY_OPEN,
+  minLiquidityClose: cfg.MIN_LIQUIDITY_CLOSE,
   refreshIntervalMs: 1,
   submitDelayMs: 1,
   slippageMax: cfg.SLIPPAGE_MAX,

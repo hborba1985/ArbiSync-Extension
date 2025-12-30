@@ -82,16 +82,24 @@
     <input id="futuresContractSize" type="number" step="0.0001" placeholder="Ex: 1" />
   </div>
   <div class="field">
-    <label for="spreadMin">Spread mínimo (%)</label>
-    <input id="spreadMin" type="number" step="0.001" placeholder="Ex: 0.2" />
+    <label for="spreadMinOpen">Spread mínimo abertura (%)</label>
+    <input id="spreadMinOpen" type="number" step="0.001" placeholder="Ex: 0.2" />
+  </div>
+  <div class="field">
+    <label for="spreadMinClose">Spread mínimo fechamento (%)</label>
+    <input id="spreadMinClose" type="number" step="0.001" placeholder="Ex: 0.2" />
   </div>
   <div class="field">
     <label for="minVolume">Volume mínimo</label>
     <input id="minVolume" type="number" step="0.0001" placeholder="Ex: 10" />
   </div>
   <div class="field">
-    <label for="minLiquidity">Liquidez mínima (tokens)</label>
-    <input id="minLiquidity" type="number" step="0.0001" placeholder="Ex: 50" />
+    <label for="minLiquidityOpen">Liquidez mínima abertura (tokens)</label>
+    <input id="minLiquidityOpen" type="number" step="0.0001" placeholder="Ex: 50" />
+  </div>
+  <div class="field">
+    <label for="minLiquidityClose">Liquidez mínima fechamento (tokens)</label>
+    <input id="minLiquidityClose" type="number" step="0.0001" placeholder="Ex: 50" />
   </div>
   <div class="field">
     <label for="refreshIntervalMs">Refresh do book (ms)</label>
@@ -161,6 +169,12 @@
   <div class="status" id="linkStatus">LINK: aguardando</div>
   <div class="status" id="syncStatus">SYNC: aguardando Tampermonkey</div>
   <div class="section-title">Modos de execução</div>
+  <div class="field checkbox">
+    <label>
+      <input id="enableLiveExecution" type="checkbox" />
+      Execução automática
+    </label>
+  </div>
   <div class="field checkbox">
     <label>
       <input id="openEnabled" type="checkbox" />

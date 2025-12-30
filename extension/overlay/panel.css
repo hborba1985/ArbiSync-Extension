@@ -61,6 +61,21 @@
   opacity: 0.85;
 }
 
+#arb-panel .hint {
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.75;
+  line-height: 1.4;
+}
+
+#arb-panel .section-divider {
+  margin-top: 10px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.6;
+}
+
 #arb-panel .spread-panel {
   margin-top: 10px;
   display: grid;
@@ -216,6 +231,68 @@
 
 #arb-panel button.ghost {
   background: rgba(255,255,255,0.12);
+}
+
+#arb-panel details.accordion {
+  margin-top: 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  padding: 8px 10px;
+}
+
+#arb-panel details.accordion summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.8;
+  list-style: none;
+  outline: none;
+}
+
+#arb-panel details.accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+#arb-panel details.accordion summary::after {
+  content: '+';
+  float: right;
+  font-weight: 800;
+}
+
+#arb-panel details.accordion[open] summary::after {
+  content: '–';
+}
+
+#arb-panel .accordion-body {
+  margin-top: 10px;
+}
+
+#arb-panel .exposure-panel {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+
+#arb-panel .exposure-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.08);
+  font-weight: 700;
+}
+
+#arb-panel .exposure-item.positive {
+  color: #6dffb3;
+}
+
+#arb-panel .exposure-item.negative {
+  color: #ff8a8a;
 }
 
 #arb-panel .position-summary {

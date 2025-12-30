@@ -4,7 +4,6 @@ import state from './state.js';
 
 let lastTrigger = 0;
 let aboveSince = null;
-const alertTimestamps = [];
 
 function getSettings() {
   return {
@@ -12,12 +11,6 @@ function getSettings() {
       state.settings.spreadMinOpen ??
       state.settings.spreadMin ??
       cfg.SPREAD_MIN_OPEN,
-    MIN_VOLUME: state.settings.minVolume ?? cfg.MIN_VOLUME,
-    SLIPPAGE_MAX: state.settings.slippageMax ?? cfg.SLIPPAGE_MAX,
-    MAX_ALERTS_PER_MINUTE:
-      state.settings.maxAlertsPerMinute ?? cfg.MAX_ALERTS_PER_MINUTE,
-    FUTURES_CONTRACT_SIZE:
-      state.settings.futuresContractSize ?? cfg.FUTURES_CONTRACT_SIZE,
     EXPOSURE_LIMITS: {
       PER_ASSET: state.settings.exposurePerAsset ?? cfg.EXPOSURE_LIMITS.PER_ASSET,
       PER_EXCHANGE:
@@ -27,28 +20,11 @@ function getSettings() {
   };
 }
 
-function cleanupAlerts() {
-  const cutoff = Date.now() - 60_000;
-  while (alertTimestamps.length && alertTimestamps[0] < cutoff) {
-    alertTimestamps.shift();
-  }
-}
-
-function computeFuturesContracts(volume, contractSize) {
-  if (!contractSize || contractSize <= 0) return 0;
-  return volume / contractSize;
-}
-
-function evaluateFilters({ spread, volume, slippage, settings }) {
+function evaluateFilters({ spread, volume, settings }) {
   const reasons = [];
-  if (volume < settings.MIN_VOLUME) reasons.push('volume_min');
   if (spread < settings.SPREAD_MIN) reasons.push('spread_min');
-  if (slippage > settings.SLIPPAGE_MAX) reasons.push('slippage_max');
 
-  const futuresContracts = computeFuturesContracts(
-    volume,
-    settings.FUTURES_CONTRACT_SIZE
-  );
+  const futuresContracts = volume;
 
   const perExchange = volume;
   const perAsset = volume * 2;
@@ -62,11 +38,6 @@ function evaluateFilters({ spread, volume, slippage, settings }) {
   }
   if (global > settings.EXPOSURE_LIMITS.GLOBAL) {
     reasons.push('exposure_global');
-  }
-
-  cleanupAlerts();
-  if (alertTimestamps.length >= settings.MAX_ALERTS_PER_MINUTE) {
-    reasons.push('alerts_per_minute');
   }
 
   return { reasons, futuresContracts };
@@ -89,12 +60,10 @@ export function checkArbitrage() {
   const inCooldown = (now - lastTrigger) < cfg.COOLDOWN_MS;
   const settings = getSettings();
   const volume = state.settings.spotVolume ?? cfg.ORDER_VOLUME;
-  const slippage = state.settings.slippageEstimate ?? 0;
 
   const { reasons, futuresContracts } = evaluateFilters({
     spread,
     volume,
-    slippage,
     settings
   });
 
@@ -102,8 +71,7 @@ export function checkArbitrage() {
   state.alert = {
     reasons,
     futuresContracts,
-    volume,
-    slippage
+    volume
   };
 
   if (spread >= settings.SPREAD_MIN && eligible) {
@@ -113,7 +81,6 @@ export function checkArbitrage() {
     if (persisted) {
       state.signal = true;
       lastTrigger = now;
-      alertTimestamps.push(now);
     }
   } else {
     aboveSince = null;

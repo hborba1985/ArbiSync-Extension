@@ -48,8 +48,6 @@ console.log('🧩 content_gate.js carregado');
         setText('bidMexc', '--');
         setText('spread', '--');
         setText('coreStatus', 'CORE: aguardando...');
-        setText('riskStatus', 'FILTROS: --');
-        setText('conversionStatus', 'FUTUROS: -- contratos');
 
         setupActions();
         setupDrag();
@@ -124,7 +122,6 @@ console.log('🧩 content_gate.js carregado');
   }
 
   function setupActions() {
-    const saveBtn = document.getElementById('saveSettingsBtn');
     const testBtn = document.getElementById('testBtn');
     const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
     const arbGroupInput = document.getElementById('arbGroup');
@@ -133,18 +130,13 @@ console.log('🧩 content_gate.js carregado');
     let settingsTimer = null;
     const inputs = [
       'spotVolume',
-      'futuresContractSize',
       'spreadMinOpen',
       'spreadMinClose',
-      'minVolume',
       'minLiquidityOpen',
       'minLiquidityClose',
       'autoExecutionCooldownMs',
       'refreshIntervalMs',
       'submitDelayMs',
-      'slippageMax',
-      'slippageEstimate',
-      'maxAlertsPerMinute',
       'exposurePerAsset',
       'exposurePerExchange',
       'exposureGlobal',
@@ -196,17 +188,12 @@ console.log('🧩 content_gate.js carregado');
 
     const readSettings = () => ({
       spotVolume: readNumber('spotVolume'),
-      futuresContractSize: readNumber('futuresContractSize'),
       spreadMinOpen: readNumber('spreadMinOpen'),
       spreadMinClose: readNumber('spreadMinClose'),
-      minVolume: readNumber('minVolume'),
       minLiquidityOpen: readNumber('minLiquidityOpen'),
       minLiquidityClose: readNumber('minLiquidityClose'),
       refreshIntervalMs: readNumber('refreshIntervalMs'),
       submitDelayMs: readNumber('submitDelayMs'),
-      slippageMax: readNumber('slippageMax'),
-      slippageEstimate: readNumber('slippageEstimate'),
-      maxAlertsPerMinute: readNumber('maxAlertsPerMinute'),
       exposurePerAsset: readNumber('exposurePerAsset'),
       exposurePerExchange: readNumber('exposurePerExchange'),
       exposureGlobal: readNumber('exposureGlobal'),
@@ -236,12 +223,6 @@ console.log('🧩 content_gate.js carregado');
         settingsTimer = null;
       }, 150);
     };
-
-    if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
-        sendCommand({ action: 'UPDATE_SETTINGS', settings: readSettings() });
-      });
-    }
 
     if (testBtn) {
       testBtn.addEventListener('click', () => {
@@ -413,11 +394,6 @@ console.log('🧩 content_gate.js carregado');
     return Number.isFinite(parsed) ? parsed * multiplier : null;
   }
 
-  function computeFuturesContracts(volume, contractSize) {
-    if (!contractSize || contractSize <= 0) return 0;
-    return volume / contractSize;
-  }
-
   function formatNumber(value, digits = 4) {
     return Number.isFinite(value) ? value.toFixed(digits) : '--';
   }
@@ -460,6 +436,35 @@ console.log('🧩 content_gate.js carregado');
         ? `${total.toFixed(3)}%`
         : '--';
     }
+  }
+
+  function updateExposurePanel(settings) {
+    const spotVolume = Number(settings.spotVolume);
+    const perExchangeLimit = Number(settings.exposurePerExchange);
+    const perAssetLimit = Number(settings.exposurePerAsset);
+    const globalLimit = Number(settings.exposureGlobal);
+    const perExchange = Number.isFinite(spotVolume) ? spotVolume : null;
+    const perAsset = Number.isFinite(spotVolume) ? spotVolume * 2 : null;
+    const global = Number.isFinite(spotVolume) ? spotVolume * 2 : null;
+
+    const formatExposure = (value, limit) => {
+      if (!Number.isFinite(value) || !Number.isFinite(limit)) return '--';
+      return `${value.toFixed(4)} / ${limit.toFixed(4)}`;
+    };
+
+    const setExposure = (id, value, limit) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('positive', 'negative');
+      el.textContent = formatExposure(value, limit);
+      if (Number.isFinite(value) && Number.isFinite(limit)) {
+        el.classList.add(value <= limit ? 'positive' : 'negative');
+      }
+    };
+
+    setExposure('exposureAsset', perAsset, perAssetLimit);
+    setExposure('exposureExchange', perExchange, perExchangeLimit);
+    setExposure('exposureGlobalStatus', global, globalLimit);
   }
 
   function syncExecutionLog(payload) {
@@ -799,12 +804,7 @@ console.log('🧩 content_gate.js carregado');
 
         if (shouldAutoOpen || shouldAutoClose) {
           const spotVolume = Number(settings.spotVolume);
-          const futuresContracts =
-            Number(data.alert?.futuresContracts) ||
-            computeFuturesContracts(
-              spotVolume,
-              Number(settings.futuresContractSize)
-            );
+          const futuresContracts = spotVolume;
           if (Number.isFinite(spotVolume) && spotVolume > 0 && futuresContracts > 0) {
             const logPayload = {
               open: shouldAutoOpen
@@ -871,27 +871,12 @@ console.log('🧩 content_gate.js carregado');
         }
       }
 
-      const riskStatus = document.getElementById('riskStatus');
-      if (riskStatus) {
-        const reasons = data.alert?.reasons?.length
-          ? data.alert.reasons.join(', ')
-          : 'OK';
-        riskStatus.textContent = `FILTROS: ${reasons}`;
-      }
-
       const testStatus = document.getElementById('testStatus');
       if (testStatus && data.lastTestExecution?.at) {
         const time = new Date(data.lastTestExecution.at).toLocaleTimeString();
         const volume = data.lastTestExecution.volume ?? '--';
         const status = data.lastTestExecution.status ?? 'PENDING';
         testStatus.textContent = `TESTE: ${volume} @ ${time} (${status})`;
-      }
-
-      const conversionStatus = document.getElementById('conversionStatus');
-      if (conversionStatus) {
-        const contracts = data.alert?.futuresContracts ?? 0;
-        conversionStatus.textContent = `FUTUROS: ${contracts.toFixed(4)} contratos`;
-        conversionStatus.dataset.contracts = String(contracts);
       }
 
       const syncStatus = document.getElementById('syncStatus');
@@ -913,18 +898,13 @@ console.log('🧩 content_gate.js carregado');
       };
 
       updateInput('spotVolume', settings.spotVolume);
-      updateInput('futuresContractSize', settings.futuresContractSize);
       updateInput('spreadMinOpen', settings.spreadMinOpen);
       updateInput('spreadMinClose', settings.spreadMinClose);
-      updateInput('minVolume', settings.minVolume);
       updateInput('minLiquidityOpen', settings.minLiquidityOpen);
       updateInput('minLiquidityClose', settings.minLiquidityClose);
       updateInput('autoExecutionCooldownMs', settings.autoExecutionCooldownMs);
       updateInput('refreshIntervalMs', settings.refreshIntervalMs);
       updateInput('submitDelayMs', settings.submitDelayMs);
-      updateInput('slippageMax', settings.slippageMax);
-      updateInput('slippageEstimate', settings.slippageEstimate);
-      updateInput('maxAlertsPerMinute', settings.maxAlertsPerMinute);
       updateInput('exposurePerAsset', settings.exposurePerAsset);
       updateInput('exposurePerExchange', settings.exposurePerExchange);
       updateInput('exposureGlobal', settings.exposureGlobal);
@@ -961,12 +941,9 @@ console.log('🧩 content_gate.js carregado');
 
       updatePositionPanel({
         spotVolume: Number(settings.spotVolume),
-        futuresContracts: Number(data.alert?.futuresContracts) ||
-          computeFuturesContracts(
-            Number(settings.spotVolume),
-            Number(settings.futuresContractSize)
-          )
+        futuresContracts: Number(settings.spotVolume)
       });
+      updateExposurePanel(settings);
     }
 
     if (msg.type === 'DOM_BOOK' && msg.payload?.source === 'mexc') {

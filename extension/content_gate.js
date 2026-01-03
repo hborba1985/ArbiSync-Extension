@@ -6,7 +6,10 @@ console.log('🧩 content_gate.js carregado');
   const OVERLAY_ID = 'arb-assistant-overlay-wrapper';
   const EXCHANGE = 'GATE';
   const GROUP_STORAGE_KEY = 'arbsync_group';
+  const AUTO_EXECUTION_COOLDOWN_FALLBACK_MS = 7000;
   let lastDomBookUpdate = 0;
+  const lastAutoExecution = { open: 0, close: 0 };
+  const executionLog = { open: null, close: null };
   const domBookCache = {
     gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
     mexc: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null }
@@ -45,13 +48,18 @@ console.log('🧩 content_gate.js carregado');
         setText('bidMexc', '--');
         setText('spread', '--');
         setText('coreStatus', 'CORE: aguardando...');
-        setText('riskStatus', 'FILTROS: --');
-        setText('conversionStatus', 'FUTUROS: -- contratos');
 
         setupActions();
         setupDrag();
         setupResize();
         startDomLiquidityPolling();
+        sendRuntimeMessage({ type: 'REQUEST_CORE_STATUS' }).then((response) => {
+          if (response?.ok === true) {
+            setText('coreStatus', 'CORE: conectado');
+          } else if (response?.ok === false) {
+            setText('coreStatus', 'CORE: desconectado');
+          }
+        });
         registerTab();
       })
       .catch((err) => {
@@ -121,7 +129,6 @@ console.log('🧩 content_gate.js carregado');
   }
 
   function setupActions() {
-    const saveBtn = document.getElementById('saveSettingsBtn');
     const testBtn = document.getElementById('testBtn');
     const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
     const arbGroupInput = document.getElementById('arbGroup');
@@ -130,15 +137,13 @@ console.log('🧩 content_gate.js carregado');
     let settingsTimer = null;
     const inputs = [
       'spotVolume',
-      'futuresContractSize',
-      'spreadMin',
-      'minVolume',
-      'minLiquidity',
+      'spreadMinOpen',
+      'spreadMinClose',
+      'minLiquidityOpen',
+      'minLiquidityClose',
+      'autoExecutionCooldownMs',
       'refreshIntervalMs',
       'submitDelayMs',
-      'slippageMax',
-      'slippageEstimate',
-      'maxAlertsPerMinute',
       'exposurePerAsset',
       'exposurePerExchange',
       'exposureGlobal',
@@ -156,6 +161,13 @@ console.log('🧩 content_gate.js carregado');
     if (allowPartial) {
       allowPartial.addEventListener('change', () => {
         allowPartial.dataset.userEdited = 'true';
+        scheduleSettingsUpdate();
+      });
+    }
+    const liveExecution = document.getElementById('enableLiveExecution');
+    if (liveExecution) {
+      liveExecution.addEventListener('change', () => {
+        liveExecution.dataset.userEdited = 'true';
         scheduleSettingsUpdate();
       });
     }
@@ -183,22 +195,20 @@ console.log('🧩 content_gate.js carregado');
 
     const readSettings = () => ({
       spotVolume: readNumber('spotVolume'),
-      futuresContractSize: readNumber('futuresContractSize'),
-      spreadMin: readNumber('spreadMin'),
-      minVolume: readNumber('minVolume'),
-      minLiquidity: readNumber('minLiquidity'),
+      spreadMinOpen: readNumber('spreadMinOpen'),
+      spreadMinClose: readNumber('spreadMinClose'),
+      minLiquidityOpen: readNumber('minLiquidityOpen'),
+      minLiquidityClose: readNumber('minLiquidityClose'),
       refreshIntervalMs: readNumber('refreshIntervalMs'),
       submitDelayMs: readNumber('submitDelayMs'),
-      slippageMax: readNumber('slippageMax'),
-      slippageEstimate: readNumber('slippageEstimate'),
-      maxAlertsPerMinute: readNumber('maxAlertsPerMinute'),
       exposurePerAsset: readNumber('exposurePerAsset'),
       exposurePerExchange: readNumber('exposurePerExchange'),
       exposureGlobal: readNumber('exposureGlobal'),
       allowPartialExecution:
         document.getElementById('allowPartialExecution')?.checked ?? false,
       testVolume: readNumber('testVolume'),
-      enableLiveExecution: false,
+      enableLiveExecution: liveExecution?.checked ?? false,
+      autoExecutionCooldownMs: readNumber('autoExecutionCooldownMs'),
       syncTestExecution: syncExecutionEnabled?.checked ?? false,
       executionModes: {
         openEnabled: openEnabled?.checked ?? true,
@@ -220,12 +230,6 @@ console.log('🧩 content_gate.js carregado');
         settingsTimer = null;
       }, 150);
     };
-
-    if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
-        sendCommand({ action: 'UPDATE_SETTINGS', settings: readSettings() });
-      });
-    }
 
     if (testBtn) {
       testBtn.addEventListener('click', () => {
@@ -395,6 +399,90 @@ console.log('🧩 content_gate.js carregado');
     cleaned = cleaned.replace(/\.(?=.*\.)/g, '').replace(',', '.');
     const parsed = Number(cleaned);
     return Number.isFinite(parsed) ? parsed * multiplier : null;
+  }
+
+  function formatNumber(value, digits = 4) {
+    return Number.isFinite(value) ? value.toFixed(digits) : '--';
+  }
+
+  function updatePositionPanel(snapshot) {
+    if (!snapshot) return;
+    const { spotVolume, futuresContracts } = snapshot;
+    const spotEl = document.getElementById('positionSpotVolume');
+    const futuresEl = document.getElementById('positionFuturesContracts');
+    if (spotEl) spotEl.textContent = formatNumber(spotVolume, 4);
+    if (futuresEl) futuresEl.textContent = formatNumber(futuresContracts, 4);
+
+    const open = executionLog.open;
+    const close = executionLog.close;
+    const openGate = document.getElementById('openGatePrice');
+    const openMexc = document.getElementById('openMexcPrice');
+    const openVolume = document.getElementById('openVolume');
+    const openSpread = document.getElementById('openSpread');
+    const closeGate = document.getElementById('closeGatePrice');
+    const closeMexc = document.getElementById('closeMexcPrice');
+    const closeVolume = document.getElementById('closeVolume');
+    const closeSpread = document.getElementById('closeSpread');
+    const totalSpread = document.getElementById('positionTotalSpread');
+
+    if (openGate) openGate.textContent = formatNumber(open?.gatePrice, 11);
+    if (openMexc) openMexc.textContent = formatNumber(open?.mexcPrice, 11);
+    if (openVolume) openVolume.textContent = formatNumber(open?.spotVolume, 4);
+    if (openSpread) openSpread.textContent = formatNumber(open?.spread, 3) + '%';
+    if (closeGate) closeGate.textContent = formatNumber(close?.gatePrice, 11);
+    if (closeMexc) closeMexc.textContent = formatNumber(close?.mexcPrice, 11);
+    if (closeVolume) closeVolume.textContent = formatNumber(close?.spotVolume, 4);
+    if (closeSpread) closeSpread.textContent = formatNumber(close?.spread, 3) + '%';
+
+    const total =
+      Number.isFinite(open?.spread) && Number.isFinite(close?.spread)
+        ? open.spread + close.spread
+        : null;
+    if (totalSpread) {
+      totalSpread.textContent = Number.isFinite(total)
+        ? `${total.toFixed(3)}%`
+        : '--';
+    }
+  }
+
+  function updateExposurePanel(settings) {
+    const spotVolume = Number(settings.spotVolume);
+    const perExchangeLimit = Number(settings.exposurePerExchange);
+    const perAssetLimit = Number(settings.exposurePerAsset);
+    const globalLimit = Number(settings.exposureGlobal);
+    const perExchange = Number.isFinite(spotVolume) ? spotVolume : null;
+    const perAsset = Number.isFinite(spotVolume) ? spotVolume * 2 : null;
+    const global = Number.isFinite(spotVolume) ? spotVolume * 2 : null;
+
+    const formatExposure = (value, limit) => {
+      if (!Number.isFinite(value) || !Number.isFinite(limit)) return '--';
+      return `${value.toFixed(4)} / ${limit.toFixed(4)}`;
+    };
+
+    const setExposure = (id, value, limit) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.classList.remove('positive', 'negative');
+      el.textContent = formatExposure(value, limit);
+      if (Number.isFinite(value) && Number.isFinite(limit)) {
+        el.classList.add(value <= limit ? 'positive' : 'negative');
+      }
+    };
+
+    setExposure('exposureAsset', perAsset, perAssetLimit);
+    setExposure('exposureExchange', perExchange, perExchangeLimit);
+    setExposure('exposureGlobalStatus', global, globalLimit);
+  }
+
+  function syncExecutionLog(payload) {
+    if (!payload) return;
+    if (payload.open) {
+      executionLog.open = payload.open;
+    }
+    if (payload.close) {
+      executionLog.close = payload.close;
+    }
+    updatePositionPanel(payload.snapshot || {});
   }
 
   function startDomLiquidityPolling() {
@@ -578,16 +666,20 @@ console.log('🧩 content_gate.js carregado');
       const gateBidPrice = document.getElementById('gateBidPrice');
       const mexcBidPrice = document.getElementById('mexcBidPrice');
       const mexcAskPrice = document.getElementById('mexcAskPrice');
-      const minLiquidity = Number(settings.minLiquidity);
-      const hasMinLiquidity = Number.isFinite(minLiquidity) && minLiquidity > 0;
+      const minLiquidityOpen = Number(
+        settings.minLiquidityOpen ?? settings.minLiquidity
+      );
+      const minLiquidityClose = Number(
+        settings.minLiquidityClose ?? settings.minLiquidity
+      );
       const formatLiquidity = (value) =>
         Number.isFinite(value) ? value.toFixed(4) : '--';
       const formatPrice = (value) =>
         Number.isFinite(value) ? value.toFixed(11) : '--';
-      const setLiquidityStatus = (el, label, leftSize, rightSize) => {
+      const setLiquidityStatus = (el, label, leftSize, rightSize, minLiquidity) => {
         if (!el) return;
         el.classList.remove('positive', 'negative');
-        if (!hasMinLiquidity) {
+        if (!Number.isFinite(minLiquidity) || minLiquidity <= 0) {
           el.textContent = `LIQUIDEZ ${label}: sem mínimo`;
           return;
         }
@@ -617,13 +709,15 @@ console.log('🧩 content_gate.js carregado');
         liquidityOpen,
         'ENTRADA',
         gateAskQty,
-        mexcBidQty
+        mexcBidQty,
+        minLiquidityOpen
       );
       setLiquidityStatus(
         liquidityClose,
         'SAÍDA',
         gateBidQty,
-        mexcAskQty
+        mexcAskQty,
+        minLiquidityClose
       );
       const domFresh = Date.now() - lastDomBookUpdate < 3000;
       if (!domFresh) {
@@ -653,12 +747,135 @@ console.log('🧩 content_gate.js carregado');
         }
       }
 
-      const riskStatus = document.getElementById('riskStatus');
-      if (riskStatus) {
-        const reasons = data.alert?.reasons?.length
-          ? data.alert.reasons.join(', ')
-          : 'OK';
-        riskStatus.textContent = `FILTROS: ${reasons}`;
+      const autoExecutionEnabled = !!settings.enableLiveExecution;
+      if (autoExecutionEnabled) {
+        const executionModes = settings.executionModes || {};
+        const openModeEnabled = !!executionModes.openEnabled;
+        const closeModeEnabled = !!executionModes.closeEnabled;
+        const spreadOpen = Number.isFinite(data.spread) ? data.spread : null;
+        const spreadClose = Number.isFinite(gateBidPx) && Number.isFinite(mexcAskPx)
+          ? ((gateBidPx - mexcAskPx) / mexcAskPx) * 100
+          : null;
+        const spreadMinOpen = Number(settings.spreadMinOpen ?? settings.spreadMin);
+        const spreadMinClose = Number(settings.spreadMinClose ?? settings.spreadMin);
+        const hasSpreadMinOpen =
+          Number.isFinite(spreadMinOpen) && spreadMinOpen > 0;
+        const hasSpreadMinClose =
+          Number.isFinite(spreadMinClose) && spreadMinClose > 0;
+        const openSpreadOk =
+          !hasSpreadMinOpen ||
+          (Number.isFinite(spreadOpen) && spreadOpen >= spreadMinOpen);
+        const closeSpreadOk =
+          !hasSpreadMinClose ||
+          (Number.isFinite(spreadClose) && spreadClose >= spreadMinClose);
+        const openLiquidityOk =
+          !Number.isFinite(minLiquidityOpen) ||
+          minLiquidityOpen <= 0 ||
+          (Number.isFinite(gateAskQty) &&
+            Number.isFinite(mexcBidQty) &&
+            gateAskQty >= minLiquidityOpen &&
+            mexcBidQty >= minLiquidityOpen);
+        const closeLiquidityOk =
+          !Number.isFinite(minLiquidityClose) ||
+          minLiquidityClose <= 0 ||
+          (Number.isFinite(gateBidQty) &&
+            Number.isFinite(mexcAskQty) &&
+            gateBidQty >= minLiquidityClose &&
+            mexcAskQty >= minLiquidityClose);
+        const reasons = data.alert?.reasons || [];
+        const openEligible = reasons.length === 0;
+        const closeEligible =
+          reasons.filter((reason) => reason !== 'spread_min').length === 0;
+        const now = Date.now();
+        const autoCooldownMs = Number(settings.autoExecutionCooldownMs);
+        const cooldownMs =
+          Number.isFinite(autoCooldownMs) && autoCooldownMs > 0
+            ? autoCooldownMs
+            : AUTO_EXECUTION_COOLDOWN_FALLBACK_MS;
+        const openCooldownOk =
+          now - lastAutoExecution.open >= cooldownMs;
+        const closeCooldownOk =
+          now - lastAutoExecution.close >= cooldownMs;
+        const shouldAutoOpen =
+          openModeEnabled &&
+          openEligible &&
+          openSpreadOk &&
+          openLiquidityOk &&
+          openCooldownOk;
+        const shouldAutoClose =
+          closeModeEnabled &&
+          closeEligible &&
+          closeSpreadOk &&
+          closeLiquidityOk &&
+          closeCooldownOk;
+
+        if (shouldAutoOpen || shouldAutoClose) {
+          const spotVolume = Number(settings.spotVolume);
+          const futuresContracts = spotVolume;
+          if (Number.isFinite(spotVolume) && spotVolume > 0 && futuresContracts > 0) {
+            const logPayload = {
+              open: shouldAutoOpen
+                ? {
+                    gatePrice: gateAskPx,
+                    mexcPrice: mexcBidPx,
+                    spotVolume,
+                    futuresContracts,
+                    spread: spreadOpen
+                  }
+                : null,
+              close: shouldAutoClose
+                ? {
+                    gatePrice: gateBidPx,
+                    mexcPrice: mexcAskPx,
+                    spotVolume,
+                    futuresContracts,
+                    spread: spreadClose
+                  }
+                : null,
+              snapshot: {
+                spotVolume,
+                futuresContracts
+              }
+            };
+            syncExecutionLog(logPayload);
+            sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
+            const payload = {
+              spotVolume,
+              futuresContracts,
+              pairGate: data.pairGate || '',
+              pairMexc: data.pairMexc || '',
+              modes: {
+                openEnabled: shouldAutoOpen,
+                closeEnabled: shouldAutoClose
+              },
+              submitDelayMs: settings.submitDelayMs
+            };
+            const group = normalizeGroup(
+              document.getElementById('arbGroup')?.value || currentGroup
+            );
+            const shouldSync =
+              document.getElementById('syncExecutionEnabled')?.checked ?? false;
+            if (shouldSync) {
+              sendRuntimeMessage({
+                type: 'SYNC_TEST_EXECUTION',
+                payload,
+                group
+              }).then((response) => {
+                if (response?.status) updateLinkStatus(response.status);
+              });
+            } else {
+              window.postMessage(
+                {
+                  type: 'ARBSYNC_TEST_EXECUTION',
+                  payload
+                },
+                '*'
+              );
+            }
+            if (shouldAutoOpen) lastAutoExecution.open = now;
+            if (shouldAutoClose) lastAutoExecution.close = now;
+          }
+        }
       }
 
       const testStatus = document.getElementById('testStatus');
@@ -667,13 +884,6 @@ console.log('🧩 content_gate.js carregado');
         const volume = data.lastTestExecution.volume ?? '--';
         const status = data.lastTestExecution.status ?? 'PENDING';
         testStatus.textContent = `TESTE: ${volume} @ ${time} (${status})`;
-      }
-
-      const conversionStatus = document.getElementById('conversionStatus');
-      if (conversionStatus) {
-        const contracts = data.alert?.futuresContracts ?? 0;
-        conversionStatus.textContent = `FUTUROS: ${contracts.toFixed(4)} contratos`;
-        conversionStatus.dataset.contracts = String(contracts);
       }
 
       const syncStatus = document.getElementById('syncStatus');
@@ -695,15 +905,13 @@ console.log('🧩 content_gate.js carregado');
       };
 
       updateInput('spotVolume', settings.spotVolume);
-      updateInput('futuresContractSize', settings.futuresContractSize);
-      updateInput('spreadMin', settings.spreadMin);
-      updateInput('minVolume', settings.minVolume);
-      updateInput('minLiquidity', settings.minLiquidity);
+      updateInput('spreadMinOpen', settings.spreadMinOpen);
+      updateInput('spreadMinClose', settings.spreadMinClose);
+      updateInput('minLiquidityOpen', settings.minLiquidityOpen);
+      updateInput('minLiquidityClose', settings.minLiquidityClose);
+      updateInput('autoExecutionCooldownMs', settings.autoExecutionCooldownMs);
       updateInput('refreshIntervalMs', settings.refreshIntervalMs);
       updateInput('submitDelayMs', settings.submitDelayMs);
-      updateInput('slippageMax', settings.slippageMax);
-      updateInput('slippageEstimate', settings.slippageEstimate);
-      updateInput('maxAlertsPerMinute', settings.maxAlertsPerMinute);
       updateInput('exposurePerAsset', settings.exposurePerAsset);
       updateInput('exposurePerExchange', settings.exposurePerExchange);
       updateInput('exposureGlobal', settings.exposureGlobal);
@@ -719,6 +927,10 @@ console.log('🧩 content_gate.js carregado');
       if (allowPartial && allowPartial.dataset.userEdited !== 'true') {
         allowPartial.checked = !!settings.allowPartialExecution;
       }
+      const liveExecution = document.getElementById('enableLiveExecution');
+      if (liveExecution && liveExecution.dataset.userEdited !== 'true') {
+        liveExecution.checked = !!settings.enableLiveExecution;
+      }
       const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
       if (syncExecutionEnabled && syncExecutionEnabled.dataset.userEdited !== 'true') {
         syncExecutionEnabled.checked = !!settings.syncTestExecution;
@@ -733,6 +945,12 @@ console.log('🧩 content_gate.js carregado');
           closeEnabled.checked = !!settings.executionModes.closeEnabled;
         }
       }
+
+      updatePositionPanel({
+        spotVolume: Number(settings.spotVolume),
+        futuresContracts: Number(settings.spotVolume)
+      });
+      updateExposurePanel(settings);
     }
 
     if (msg.type === 'DOM_BOOK' && msg.payload?.source === 'mexc') {
@@ -766,6 +984,10 @@ console.log('🧩 content_gate.js carregado');
         lastDomBookUpdate = Date.now();
         domBookCache.mexc.bidVolume = bidVolume;
       }
+    }
+
+    if (msg.type === 'EXECUTION_LOG') {
+      syncExecutionLog(msg.payload);
     }
   });
 })();

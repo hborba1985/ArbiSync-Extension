@@ -44,14 +44,6 @@ function normalizeMexcDepthQuantity(entry) {
   return Number(entry);
 }
 
-function normalizeFuturesSize(size) {
-  const contractSize =
-    state.settings?.futuresContractSize ?? cfg.FUTURES_CONTRACT_SIZE;
-  if (!Number.isFinite(size)) return size;
-  if (!Number.isFinite(contractSize) || contractSize <= 0) return size;
-  return size * contractSize;
-}
-
 /* ========================================================= */
 /* ====================== GATE SPOT ======================== */
 /* ========================================================= */
@@ -194,7 +186,7 @@ function startMexcFutures() {
         msg?.data?.bidVol ??
         msg?.data?.bidQty;
       if (rawBidSize != null) {
-        const bidSize = normalizeFuturesSize(Number(rawBidSize));
+        const bidSize = Number(rawBidSize);
         if (!Number.isNaN(bidSize)) {
           state.mexcBidSize = bidSize;
         }
@@ -212,7 +204,7 @@ function startMexcFutures() {
         msg?.data?.askVol ??
         msg?.data?.askQty;
       if (rawAskSize != null) {
-        const askSize = normalizeFuturesSize(Number(rawAskSize));
+        const askSize = Number(rawAskSize);
         if (!Number.isNaN(askSize)) {
           state.mexcAskSize = askSize;
         }
@@ -220,12 +212,12 @@ function startMexcFutures() {
 
       if (msg?.data?.asks || msg?.data?.bids) {
         const depthAskBase = normalizeMexcDepthQuantity(msg.data?.asks?.[0]);
-        const depthAskSize = normalizeFuturesSize(depthAskBase);
+        const depthAskSize = depthAskBase;
         if (!Number.isNaN(depthAskSize)) {
           state.mexcAskSize = depthAskSize;
         }
         const depthBidBase = normalizeMexcDepthQuantity(msg.data?.bids?.[0]);
-        const depthBidSize = normalizeFuturesSize(depthBidBase);
+        const depthBidSize = depthBidBase;
         if (!Number.isNaN(depthBidSize)) {
           state.mexcBidSize = depthBidSize;
         }

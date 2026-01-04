@@ -13,6 +13,27 @@ console.log('🧩 content_mexc.js carregado');
   };
   let currentGroup = sessionStorage.getItem(GROUP_STORAGE_KEY) || '';
   const latestPairs = { gate: '', mexc: '' };
+  const exposureState = { exchange: EXCHANGE, asset: null };
+
+  function safeStorageGet(key) {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get([key], (result) => resolve(result?.[key]));
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  function safeStorageSet(payload) {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.set(payload, () => resolve(true));
+      } catch {
+        resolve(false);
+      }
+    });
+  }
 
   function ensureOverlay() {
     if (document.getElementById(OVERLAY_ID)) return;
@@ -50,6 +71,8 @@ console.log('🧩 content_mexc.js carregado');
         setupDrag();
         setupResize();
         startDomLiquidityPolling();
+        startExposurePolling();
+        ensureMexcLayout();
         sendRuntimeMessage({ type: 'REQUEST_CORE_STATUS' }).then((response) => {
           if (response?.ok === true) {
             setText('coreStatus', 'CORE: conectado');
@@ -398,6 +421,61 @@ console.log('🧩 content_mexc.js carregado');
     return Number.isFinite(parsed) ? parsed * multiplier : null;
   }
 
+  function parseLocaleNumber(value) {
+    if (value == null) return null;
+    const cleaned = String(value).replace(/\s+/g, '').replace(',', '.');
+    const parsed = Number(cleaned.replace(/[^\d.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function parseTokenAmount(value) {
+    if (!value) return { qty: null, asset: null };
+    const cleaned = String(value).replace(/\s+/g, ' ').trim();
+    const parts = cleaned.split(' ');
+    const qty = parseLocaleNumber(parts[0]);
+    const asset = parts.slice(1).join(' ').trim() || null;
+    return { qty, asset };
+  }
+
+  function ensureMexcLayout() {
+    const checkbox = document.querySelector(
+      '#mexc-web-futures-exchange-handle-content-right > div.HideOtherPairs_showAll__H8zW6.hide-other-pairs > label > span.ant-checkbox-v2 > input'
+    );
+    if (checkbox && !checkbox.checked) {
+      checkbox.click();
+    }
+  }
+
+  function extractMexcExposure() {
+    const exposureEl = document.querySelector(
+      '#mexc-web-inspection-futures-exchange-current-position > div.ant-table-wrapper.Position_positionTable__0FikK.Position_positionTableFixedColumn__HRSBx > div > div > div > div > div > table > tbody > tr.ant-table-row.ant-table-row-level-0 > td:nth-child(2) > span > span'
+    );
+    const priceEl = document.querySelector(
+      '#mexc-web-inspection-futures-exchange-current-position > div.ant-table-wrapper.Position_positionTable__0FikK.Position_positionTableFixedColumn__HRSBx > div > div > div > div > div > table > tbody > tr.ant-table-row.ant-table-row-level-0 > td:nth-child(3) > span'
+    );
+    const { qty, asset } = parseTokenAmount(exposureEl?.textContent);
+    const avgPrice = parseLocaleNumber(priceEl?.textContent);
+    if (!Number.isFinite(qty) || !asset) return null;
+    return { qty, asset, avgPrice };
+  }
+
+  async function persistExposureSnapshot(exchange, asset, qty, avgPrice) {
+    if (!asset || !Number.isFinite(qty)) return;
+    const current = (await safeStorageGet('arbsync_exposure')) || {};
+    const exchangeData = current[exchange] || {};
+    exchangeData[asset] = {
+      qty,
+      avgPrice: Number.isFinite(avgPrice) ? avgPrice : null,
+      updatedAt: Date.now()
+    };
+    current[exchange] = exchangeData;
+    await safeStorageSet({ arbsync_exposure: current });
+  }
+
+  async function readExposureSnapshot() {
+    return (await safeStorageGet('arbsync_exposure')) || {};
+  }
+
   function formatNumber(value, digits = 4) {
     return Number.isFinite(value) ? value.toFixed(digits) : '--';
   }
@@ -405,32 +483,52 @@ console.log('🧩 content_mexc.js carregado');
   const executionLog = { open: null, close: null };
 
   function updateExposurePanel(settings) {
-    const spotVolume = Number(settings.spotVolume);
     const perExchangeLimit = Number(settings.exposurePerExchange);
     const perAssetLimit = Number(settings.exposurePerAsset);
     const globalLimit = Number(settings.exposureGlobal);
-    const perExchange = Number.isFinite(spotVolume) ? spotVolume : null;
-    const perAsset = Number.isFinite(spotVolume) ? spotVolume * 2 : null;
-    const global = Number.isFinite(spotVolume) ? spotVolume * 2 : null;
+    const baseAsset = exposureState.asset;
+    const renderWith = (perAsset, perExchange, global) => {
+      const formatExposure = (value, limit) => {
+        if (!Number.isFinite(value) || !Number.isFinite(limit)) return '--';
+        return `${value.toFixed(4)} / ${limit.toFixed(4)}`;
+      };
 
-    const formatExposure = (value, limit) => {
-      if (!Number.isFinite(value) || !Number.isFinite(limit)) return '--';
-      return `${value.toFixed(4)} / ${limit.toFixed(4)}`;
+      const setExposure = (id, value, limit) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('positive', 'negative');
+        el.textContent = formatExposure(value, limit);
+        if (Number.isFinite(value) && Number.isFinite(limit)) {
+          el.classList.add(value <= limit ? 'positive' : 'negative');
+        }
+      };
+
+      setExposure('exposureAsset', perAsset, perAssetLimit);
+      setExposure('exposureExchange', perExchange, perExchangeLimit);
+      setExposure('exposureGlobalStatus', global, globalLimit);
     };
 
-    const setExposure = (id, value, limit) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.classList.remove('positive', 'negative');
-      el.textContent = formatExposure(value, limit);
-      if (Number.isFinite(value) && Number.isFinite(limit)) {
-        el.classList.add(value <= limit ? 'positive' : 'negative');
-      }
-    };
+    if (!baseAsset) {
+      renderWith(0, 0, 0);
+      return;
+    }
 
-    setExposure('exposureAsset', perAsset, perAssetLimit);
-    setExposure('exposureExchange', perExchange, perExchangeLimit);
-    setExposure('exposureGlobalStatus', global, globalLimit);
+    readExposureSnapshot().then((snapshot) => {
+      const gate = snapshot.GATE || {};
+      const mexc = snapshot.MEXC || {};
+      const gateQty = Number(gate[baseAsset]?.qty) || 0;
+      const mexcQty = Number(mexc[baseAsset]?.qty) || 0;
+      const perAsset = Math.abs(gateQty) + Math.abs(mexcQty);
+      const perExchange = Math.abs(mexcQty);
+      const global = Object.values(gate).reduce(
+        (sum, entry) => sum + Math.abs(Number(entry?.qty) || 0),
+        0
+      ) + Object.values(mexc).reduce(
+        (sum, entry) => sum + Math.abs(Number(entry?.qty) || 0),
+        0
+      );
+      renderWith(perAsset, perExchange, global);
+    });
   }
 
   function updatePositionPanel(snapshot) {
@@ -482,6 +580,22 @@ console.log('🧩 content_mexc.js carregado');
       executionLog.close = payload.close;
     }
     updatePositionPanel(payload.snapshot || {});
+  }
+
+  function startExposurePolling() {
+    const poll = () => {
+      const exposure = extractMexcExposure();
+      if (!exposure) return;
+      exposureState.asset = exposure.asset;
+      persistExposureSnapshot(
+        EXCHANGE,
+        exposure.asset,
+        exposure.qty,
+        exposure.avgPrice
+      );
+    };
+    poll();
+    setInterval(poll, 3000);
   }
 
   function startDomLiquidityPolling() {

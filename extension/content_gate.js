@@ -16,6 +16,27 @@ console.log('🧩 content_gate.js carregado');
   };
   let currentGroup = sessionStorage.getItem(GROUP_STORAGE_KEY) || '';
   const latestPairs = { gate: '', mexc: '' };
+  const exposureState = { exchange: EXCHANGE, asset: null };
+
+  function safeStorageGet(key) {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.get([key], (result) => resolve(result?.[key]));
+      } catch {
+        resolve(null);
+      }
+    });
+  }
+
+  function safeStorageSet(payload) {
+    return new Promise((resolve) => {
+      try {
+        chrome.storage.local.set(payload, () => resolve(true));
+      } catch {
+        resolve(false);
+      }
+    });
+  }
 
   function ensureOverlay() {
     if (document.getElementById(OVERLAY_ID)) return;
@@ -53,6 +74,8 @@ console.log('🧩 content_gate.js carregado');
         setupDrag();
         setupResize();
         startDomLiquidityPolling();
+        startExposurePolling();
+        ensureGateMarketTab();
         sendRuntimeMessage({ type: 'REQUEST_CORE_STATUS' }).then((response) => {
           if (response?.ok === true) {
             setText('coreStatus', 'CORE: conectado');
@@ -405,6 +428,106 @@ console.log('🧩 content_gate.js carregado');
     return Number.isFinite(value) ? value.toFixed(digits) : '--';
   }
 
+  function parseLocaleNumber(value) {
+    if (value == null) return null;
+    const cleaned = String(value).replace(/\s+/g, '').replace(',', '.');
+    const parsed = Number(cleaned.replace(/[^\d.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function parseTokenAmount(value) {
+    if (!value) return { qty: null, asset: null };
+    const cleaned = String(value).replace(/\s+/g, ' ').trim();
+    const parts = cleaned.split(' ');
+    const qty = parseLocaleNumber(parts[0]);
+    const asset = parts.slice(1).join(' ').trim() || null;
+    return { qty, asset };
+  }
+
+  function ensureGateMarketTab() {
+    const tab = document.querySelector('#tab-marketPrice > span > span');
+    if (tab) tab.click();
+  }
+
+  function extractGateExposure() {
+    const balanceEl = document.querySelector(
+      '#trade-assets-container > div > div.flex.flex-col.gap-3.pt-4 > div:nth-child(2)'
+    );
+    const text = balanceEl?.textContent || '';
+    const match = text.match(/([\d.,]+)\s*([A-Za-z]+)/);
+    if (!match) return null;
+    const qty = parseLocaleNumber(match[1]);
+    const asset = match[2];
+    if (!Number.isFinite(qty) || !asset) return null;
+    return { qty, asset };
+  }
+
+  function extractGateTrades() {
+    const rows = Array.from(
+      document.querySelectorAll(
+        '#orderPanel table tbody tr'
+      )
+    );
+    return rows.map((row) => {
+      const cells = row.querySelectorAll('td');
+      const market = cells[0]?.textContent?.trim() || '';
+      const side = cells[1]?.textContent?.trim() || '';
+      const priceText = cells[2]?.textContent?.trim() || '';
+      const qtyText = cells[3]?.textContent?.trim() || '';
+      const timeText = cells[5]?.textContent?.trim() || '';
+      const asset = market.split('/')[0]?.trim();
+      const price = parseLocaleNumber(priceText);
+      const qty = parseLocaleNumber(qtyText);
+      return {
+        asset,
+        side,
+        price,
+        qty,
+        time: timeText
+      };
+    });
+  }
+
+  function computeGateAveragePrice(asset, exposureQty, trades) {
+    if (!Number.isFinite(exposureQty) || exposureQty <= 0) return null;
+    let remaining = exposureQty;
+    let cost = 0;
+    for (const trade of trades) {
+      if (!trade || trade.asset !== asset) continue;
+      if (!Number.isFinite(trade.qty) || !Number.isFinite(trade.price)) continue;
+      const isBuy = trade.side.toLowerCase().includes('compra');
+      const isSell = trade.side.toLowerCase().includes('venda');
+      if (isSell) {
+        remaining += trade.qty;
+        continue;
+      }
+      if (!isBuy) continue;
+      const used = Math.min(trade.qty, remaining);
+      cost += used * trade.price;
+      remaining -= used;
+      if (remaining <= 0) break;
+    }
+    if (remaining > 0 || exposureQty <= 0) return null;
+    return cost / exposureQty;
+  }
+
+  async function persistExposureSnapshot(exchange, asset, qty, avgPrice) {
+    if (!asset || !Number.isFinite(qty)) return;
+    const current = (await safeStorageGet('arbsync_exposure')) || {};
+    const exchangeData = current[exchange] || {};
+    exchangeData[asset] = {
+      qty,
+      avgPrice: Number.isFinite(avgPrice) ? avgPrice : null,
+      updatedAt: Date.now()
+    };
+    current[exchange] = exchangeData;
+    await safeStorageSet({ arbsync_exposure: current });
+  }
+
+  async function readExposureSnapshot() {
+    return (await safeStorageGet('arbsync_exposure')) || {};
+  }
+
   function updatePositionPanel(snapshot) {
     if (!snapshot) return;
     const { spotVolume, futuresContracts } = snapshot;
@@ -446,32 +569,52 @@ console.log('🧩 content_gate.js carregado');
   }
 
   function updateExposurePanel(settings) {
-    const spotVolume = Number(settings.spotVolume);
     const perExchangeLimit = Number(settings.exposurePerExchange);
     const perAssetLimit = Number(settings.exposurePerAsset);
     const globalLimit = Number(settings.exposureGlobal);
-    const perExchange = Number.isFinite(spotVolume) ? spotVolume : null;
-    const perAsset = Number.isFinite(spotVolume) ? spotVolume * 2 : null;
-    const global = Number.isFinite(spotVolume) ? spotVolume * 2 : null;
+    const baseAsset = exposureState.asset;
+    const renderWith = (perAsset, perExchange, global) => {
+      const formatExposure = (value, limit) => {
+        if (!Number.isFinite(value) || !Number.isFinite(limit)) return '--';
+        return `${value.toFixed(4)} / ${limit.toFixed(4)}`;
+      };
 
-    const formatExposure = (value, limit) => {
-      if (!Number.isFinite(value) || !Number.isFinite(limit)) return '--';
-      return `${value.toFixed(4)} / ${limit.toFixed(4)}`;
+      const setExposure = (id, value, limit) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.classList.remove('positive', 'negative');
+        el.textContent = formatExposure(value, limit);
+        if (Number.isFinite(value) && Number.isFinite(limit)) {
+          el.classList.add(value <= limit ? 'positive' : 'negative');
+        }
+      };
+
+      setExposure('exposureAsset', perAsset, perAssetLimit);
+      setExposure('exposureExchange', perExchange, perExchangeLimit);
+      setExposure('exposureGlobalStatus', global, globalLimit);
     };
 
-    const setExposure = (id, value, limit) => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.classList.remove('positive', 'negative');
-      el.textContent = formatExposure(value, limit);
-      if (Number.isFinite(value) && Number.isFinite(limit)) {
-        el.classList.add(value <= limit ? 'positive' : 'negative');
-      }
-    };
+    if (!baseAsset) {
+      renderWith(0, 0, 0);
+      return;
+    }
 
-    setExposure('exposureAsset', perAsset, perAssetLimit);
-    setExposure('exposureExchange', perExchange, perExchangeLimit);
-    setExposure('exposureGlobalStatus', global, globalLimit);
+    readExposureSnapshot().then((snapshot) => {
+      const gate = snapshot.GATE || {};
+      const mexc = snapshot.MEXC || {};
+      const gateQty = Number(gate[baseAsset]?.qty) || 0;
+      const mexcQty = Number(mexc[baseAsset]?.qty) || 0;
+      const perAsset = Math.abs(gateQty) + Math.abs(mexcQty);
+      const perExchange = Math.abs(gateQty);
+      const global = Object.values(gate).reduce(
+        (sum, entry) => sum + Math.abs(Number(entry?.qty) || 0),
+        0
+      ) + Object.values(mexc).reduce(
+        (sum, entry) => sum + Math.abs(Number(entry?.qty) || 0),
+        0
+      );
+      renderWith(perAsset, perExchange, global);
+    });
   }
 
   function syncExecutionLog(payload) {
@@ -483,6 +626,23 @@ console.log('🧩 content_gate.js carregado');
       executionLog.close = payload.close;
     }
     updatePositionPanel(payload.snapshot || {});
+  }
+
+  function startExposurePolling() {
+    const poll = () => {
+      const exposure = extractGateExposure();
+      if (!exposure) return;
+      exposureState.asset = exposure.asset;
+      const trades = extractGateTrades();
+      const avgPrice = computeGateAveragePrice(
+        exposure.asset,
+        exposure.qty,
+        trades
+      );
+      persistExposureSnapshot(EXCHANGE, exposure.asset, exposure.qty, avgPrice);
+    };
+    poll();
+    setInterval(poll, 3000);
   }
 
   function startDomLiquidityPolling() {

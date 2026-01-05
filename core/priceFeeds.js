@@ -8,9 +8,39 @@ import cfg from './config.js';
  * - Gate.io / Gate.com SPOT  -> melhor ASK (lowest_ask)
  * - MEXC FUTUROS            -> melhor BID
  */
+let gateWs = null;
+let mexcWs = null;
+let gateReconnectTimer = null;
+let mexcReconnectTimer = null;
+let currentGatePair = null;
+let currentMexcPair = null;
+
 export function startFeeds() {
-  startGateSpot();
-  startMexcFutures();
+  const pairGate = state.settings?.pairGate ?? cfg.PAIR_GATE;
+  const pairMexc = state.settings?.pairMexc ?? cfg.PAIR_MEXC;
+  currentGatePair = pairGate;
+  currentMexcPair = pairMexc;
+  startGateSpot(pairGate);
+  startMexcFutures(pairMexc);
+}
+
+export function updateFeeds({ pairGate, pairMexc } = {}) {
+  const nextGate = pairGate ?? currentGatePair ?? cfg.PAIR_GATE;
+  const nextMexc = pairMexc ?? currentMexcPair ?? cfg.PAIR_MEXC;
+  const gateChanged = nextGate && nextGate !== currentGatePair;
+  const mexcChanged = nextMexc && nextMexc !== currentMexcPair;
+  if (gateChanged) {
+    currentGatePair = nextGate;
+    if (gateReconnectTimer) clearTimeout(gateReconnectTimer);
+    if (gateWs) gateWs.close();
+    startGateSpot(nextGate);
+  }
+  if (mexcChanged) {
+    currentMexcPair = nextMexc;
+    if (mexcReconnectTimer) clearTimeout(mexcReconnectTimer);
+    if (mexcWs) mexcWs.close();
+    startMexcFutures(nextMexc);
+  }
 }
 
 function normalizeBookSize(entry) {
@@ -48,32 +78,32 @@ function normalizeMexcDepthQuantity(entry) {
 /* ====================== GATE SPOT ======================== */
 /* ========================================================= */
 
-function startGateSpot() {
+function startGateSpot(pairGate) {
   const url = 'wss://api.gateio.ws/ws/v4/';
-  const ws = new WebSocket(url);
+  gateWs = new WebSocket(url);
 
-  ws.on('open', () => {
+  gateWs.on('open', () => {
     console.log('🟢 Gate SPOT WS conectado');
 
-    ws.send(
+    gateWs.send(
       JSON.stringify({
         time: Math.floor(Date.now() / 1000),
         channel: 'spot.tickers',
         event: 'subscribe',
-        payload: [cfg.PAIR_GATE]
+        payload: [pairGate]
       })
     );
-    ws.send(
+    gateWs.send(
       JSON.stringify({
         time: Math.floor(Date.now() / 1000),
         channel: 'spot.order_book',
         event: 'subscribe',
-        payload: [cfg.PAIR_GATE, '100ms', '1']
+        payload: [pairGate, '100ms', '1']
       })
     );
   });
 
-  ws.on('message', (raw) => {
+  gateWs.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
 
@@ -128,13 +158,17 @@ function startGateSpot() {
     }
   });
 
-  ws.on('error', (err) => {
+  gateWs.on('error', (err) => {
     console.error('❌ Gate WS erro:', err.message);
   });
 
-  ws.on('close', () => {
+  gateWs.on('close', () => {
     console.warn('⚠️ Gate WS fechado — reconectando em 5s');
-    setTimeout(startGateSpot, 5000);
+    if (gateReconnectTimer) clearTimeout(gateReconnectTimer);
+    gateReconnectTimer = setTimeout(
+      () => startGateSpot(currentGatePair ?? pairGate),
+      5000
+    );
   });
 }
 
@@ -142,33 +176,33 @@ function startGateSpot() {
 /* ==================== MEXC FUTUROS ======================= */
 /* ========================================================= */
 
-function startMexcFutures() {
+function startMexcFutures(pairMexc) {
   const url = 'wss://contract.mexc.com/edge';
-  const ws = new WebSocket(url);
+  mexcWs = new WebSocket(url);
 
-  ws.on('open', () => {
+  mexcWs.on('open', () => {
     console.log('🟢 MEXC FUTUROS WS conectado');
 
-    ws.send(
+    mexcWs.send(
       JSON.stringify({
         method: 'sub.ticker',
         param: {
-          symbol: cfg.PAIR_MEXC
+          symbol: pairMexc
         }
       })
     );
-    ws.send(
+    mexcWs.send(
       JSON.stringify({
         method: 'sub.depth',
         param: {
-          symbol: cfg.PAIR_MEXC,
+          symbol: pairMexc,
           level: 1
         }
       })
     );
   });
 
-  ws.on('message', (raw) => {
+  mexcWs.on('message', (raw) => {
     try {
       const msg = JSON.parse(raw.toString());
 
@@ -227,12 +261,16 @@ function startMexcFutures() {
     }
   });
 
-  ws.on('error', (err) => {
+  mexcWs.on('error', (err) => {
     console.error('❌ MEXC WS erro:', err.message);
   });
 
-  ws.on('close', () => {
+  mexcWs.on('close', () => {
     console.warn('⚠️ MEXC WS fechado — reconectando em 5s');
-    setTimeout(startMexcFutures, 5000);
+    if (mexcReconnectTimer) clearTimeout(mexcReconnectTimer);
+    mexcReconnectTimer = setTimeout(
+      () => startMexcFutures(currentMexcPair ?? pairMexc),
+      5000
+    );
   });
 }

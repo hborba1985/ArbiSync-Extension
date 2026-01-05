@@ -32,6 +32,8 @@ export default {
     executionModes: {
       openEnabled: true,
       closeEnabled: false
-    }
+    },
+    pairGate: null,
+    pairMexc: null
   }
 };

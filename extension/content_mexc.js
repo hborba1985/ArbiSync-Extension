@@ -73,6 +73,7 @@ console.log('🧩 content_mexc.js carregado');
         startDomLiquidityPolling();
         startExposurePolling();
         ensureMexcLayout();
+        startPairSync();
         sendRuntimeMessage({ type: 'REQUEST_CORE_STATUS' }).then((response) => {
           if (response?.ok === true) {
             setText('coreStatus', 'CORE: conectado');
@@ -444,6 +445,37 @@ console.log('🧩 content_mexc.js carregado');
     if (checkbox && !checkbox.checked) {
       checkbox.click();
     }
+  }
+
+  function getPairFromMexcUrl() {
+    const match = window.location.pathname.match(/\/futures\/([^/?#]+)/);
+    if (!match) return null;
+    return match[1].toUpperCase();
+  }
+
+  function syncPairFromUrl() {
+    const pair = getPairFromMexcUrl();
+    if (!pair) return;
+    if (latestPairs.mexc === pair) return;
+    latestPairs.mexc = pair;
+    sendCommand({
+      action: 'UPDATE_SETTINGS',
+      settings: {
+        pairMexc: pair
+      }
+    });
+  }
+
+  let lastPath = '';
+  function startPairSync() {
+    const check = () => {
+      if (window.location.pathname !== lastPath) {
+        lastPath = window.location.pathname;
+        syncPairFromUrl();
+      }
+    };
+    check();
+    setInterval(check, 1000);
   }
 
   function extractMexcExposure() {

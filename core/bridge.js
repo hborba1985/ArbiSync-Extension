@@ -1,6 +1,7 @@
 // core/bridge.js
 import { WebSocketServer } from 'ws'
 import cfg from './config.js'
+import { updateFeeds } from './priceFeeds.js'
 import state from './state.js'
 
 let wss = null
@@ -14,6 +15,10 @@ function handleCommand(command) {
         ...state.settings,
         ...command.settings
       }
+      updateFeeds({
+        pairGate: state.settings.pairGate,
+        pairMexc: state.settings.pairMexc
+      })
       break
     case 'TEST_EXECUTION':
       state.lastTestExecution = {
@@ -71,8 +76,8 @@ export function broadcastState() {
     spread: state.spread,
     signal: state.signal,
     mode: state.mode,
-    pairGate: cfg.PAIR_GATE,
-    pairMexc: cfg.PAIR_MEXC,
+    pairGate: state.settings.pairGate ?? cfg.PAIR_GATE,
+    pairMexc: state.settings.pairMexc ?? cfg.PAIR_MEXC,
     settings: state.settings,
     alert: state.alert,
     lastTestExecution: state.lastTestExecution

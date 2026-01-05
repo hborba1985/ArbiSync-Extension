@@ -76,6 +76,7 @@ console.log('🧩 content_gate.js carregado');
         startDomLiquidityPolling();
         startExposurePolling();
         ensureGateMarketTab();
+        startPairSync();
         sendRuntimeMessage({ type: 'REQUEST_CORE_STATUS' }).then((response) => {
           if (response?.ok === true) {
             setText('coreStatus', 'CORE: conectado');
@@ -447,6 +448,37 @@ console.log('🧩 content_gate.js carregado');
   function ensureGateMarketTab() {
     const tab = document.querySelector('#tab-marketPrice > span > span');
     if (tab) tab.click();
+  }
+
+  function getPairFromGateUrl() {
+    const match = window.location.pathname.match(/\/trade\/([^/?#]+)/);
+    if (!match) return null;
+    return match[1].toUpperCase();
+  }
+
+  function syncPairFromUrl() {
+    const pair = getPairFromGateUrl();
+    if (!pair) return;
+    if (latestPairs.gate === pair) return;
+    latestPairs.gate = pair;
+    sendCommand({
+      action: 'UPDATE_SETTINGS',
+      settings: {
+        pairGate: pair
+      }
+    });
+  }
+
+  let lastPath = '';
+  function startPairSync() {
+    const check = () => {
+      if (window.location.pathname !== lastPath) {
+        lastPath = window.location.pathname;
+        syncPairFromUrl();
+      }
+    };
+    check();
+    setInterval(check, 1000);
   }
 
   function extractGateExposure() {

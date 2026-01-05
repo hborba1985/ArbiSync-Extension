@@ -31,7 +31,9 @@ state.settings = {
   executionModes: {
     openEnabled: true,
     closeEnabled: false
-  }
+  },
+  pairGate: cfg.PAIR_GATE,
+  pairMexc: cfg.PAIR_MEXC
 };
 
 setInterval(() => {

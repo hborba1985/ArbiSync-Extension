@@ -558,13 +558,16 @@ console.log('🧩 content_mexc.js carregado');
       '#mexc-web-inspection-futures-exchange-current-position > div.ant-table-wrapper.Position_positionTable__0FikK.Position_positionTableFixedColumn__HRSBx > div > div > div > div > div > table > tbody > tr.ant-table-row.ant-table-row-level-0 > td:nth-child(3) > span'
     );
     const exposureStatus = document.getElementById('exposureStatus');
+    const rawText = exposureEl?.textContent?.trim() || 'n/d';
+    const rawPrice = priceEl?.textContent?.trim() || 'n/d';
     if (exposureStatus) {
-      const rawText = exposureEl?.textContent?.trim() || 'n/d';
-      const rawPrice = priceEl?.textContent?.trim() || 'n/d';
       exposureStatus.textContent = `EXPOSIÇÃO: raw="${rawText}" avg="${rawPrice}"`;
     }
     const { qty, asset } = parseTokenAmount(exposureEl?.textContent);
     const avgPrice = parseLocaleNumber(priceEl?.textContent);
+    if (exposureStatus) {
+      exposureStatus.textContent += ` parsedQty="${qty ?? 'n/d'}" asset="${asset ?? 'n/d'}"`;
+    }
     if (!Number.isFinite(qty) || !asset) return null;
     return { qty, asset, avgPrice };
   }
@@ -668,6 +671,10 @@ console.log('🧩 content_mexc.js carregado');
       }
       const gateAvg = Number(gate[assetKey]?.avgPrice);
       const mexcAvg = Number(mexc[assetKey]?.avgPrice);
+      const exposureStatus = document.getElementById('exposureStatus');
+      if (exposureStatus) {
+        exposureStatus.textContent += ` storage[${assetKey}] gateQty="${gateQty}" mexcQty="${mexcQty}"`;
+      }
       const perAsset = Math.abs(gateQty) + Math.abs(mexcQty);
       const perExchange = Math.abs(mexcQty);
       const global = Object.values(gate).reduce(

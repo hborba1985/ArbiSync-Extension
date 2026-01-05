@@ -106,7 +106,10 @@ console.log('🧩 content_gate.js carregado');
     if (!panel || !minimizeBtn || !minimizedToggle) return;
 
     const applyState = (minimized) => {
-      panel.classList.toggle('minimized', minimized);
+      if (!panel.dataset.displayBefore) {
+        panel.dataset.displayBefore = panel.style.display || 'block';
+      }
+      panel.style.display = minimized ? 'none' : panel.dataset.displayBefore;
       minimizedToggle.classList.toggle('show', minimized);
       minimizedToggle.style.display = minimized ? 'inline-flex' : 'none';
     };
@@ -485,11 +488,18 @@ console.log('🧩 content_gate.js carregado');
     return match[1].toUpperCase();
   }
 
+  function getAssetFromPair(pair) {
+    if (!pair) return null;
+    const base = pair.split('_')[0] || pair.split('/')[0];
+    return base ? base.toUpperCase() : null;
+  }
+
   function syncPairFromUrl() {
     const pair = getPairFromGateUrl();
     if (!pair) return;
     if (latestPairs.gate === pair) return;
     latestPairs.gate = pair;
+    exposureState.asset = getAssetFromPair(pair) || exposureState.asset;
     sendCommand({
       action: 'UPDATE_SETTINGS',
       settings: {
@@ -633,7 +643,7 @@ console.log('🧩 content_gate.js carregado');
     const perExchangeLimit = Number(settings.exposurePerExchange);
     const perAssetLimit = Number(settings.exposurePerAsset);
     const globalLimit = Number(settings.exposureGlobal);
-    const baseAsset = exposureState.asset;
+    const baseAsset = exposureState.asset || getAssetFromPair(latestPairs.gate);
     const renderWith = (perAsset, perExchange, global, gateQty, mexcQty) => {
       const formatExposure = (value, limit) => {
         if (!Number.isFinite(value) || !Number.isFinite(limit)) return '--';

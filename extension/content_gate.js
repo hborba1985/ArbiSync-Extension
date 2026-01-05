@@ -21,9 +21,14 @@ console.log('🧩 content_gate.js carregado');
 
   function safeStorageGet(key) {
     return new Promise((resolve) => {
+      const status = document.getElementById('storageStatus');
       try {
-        chrome.storage.local.get([key], (result) => resolve(result?.[key]));
+        chrome.storage.local.get([key], (result) => {
+          if (status) status.textContent = 'STORAGE: OK';
+          resolve(result?.[key]);
+        });
       } catch {
+        if (status) status.textContent = 'STORAGE: FALHOU';
         resolve(null);
       }
     });
@@ -31,9 +36,14 @@ console.log('🧩 content_gate.js carregado');
 
   function safeStorageSet(payload) {
     return new Promise((resolve) => {
+      const status = document.getElementById('storageStatus');
       try {
-        chrome.storage.local.set(payload, () => resolve(true));
+        chrome.storage.local.set(payload, () => {
+          if (status) status.textContent = 'STORAGE: OK';
+          resolve(true);
+        });
       } catch {
+        if (status) status.textContent = 'STORAGE: FALHOU';
         resolve(false);
       }
     });

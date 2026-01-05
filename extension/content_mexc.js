@@ -460,9 +460,22 @@ console.log('🧩 content_mexc.js carregado');
     const numeric = cleaned.replace(/[^\d.,-]/g, '');
     const lastComma = numeric.lastIndexOf(',');
     const lastDot = numeric.lastIndexOf('.');
-    const decimalIndex = Math.max(lastComma, lastDot);
     let normalized = numeric;
-    if (decimalIndex !== -1) {
+
+    if (lastComma !== -1 && lastDot === -1) {
+      const fraction = numeric.slice(lastComma + 1);
+      if (fraction.length === 3) {
+        normalized = numeric.replace(/,/g, '');
+      } else {
+        normalized = numeric.replace(/,/g, '.');
+      }
+    } else if (lastDot !== -1 && lastComma === -1) {
+      const fraction = numeric.slice(lastDot + 1);
+      if (fraction.length === 3) {
+        normalized = numeric.replace(/\./g, '');
+      }
+    } else if (lastComma !== -1 && lastDot !== -1) {
+      const decimalIndex = Math.max(lastComma, lastDot);
       const integerPart = numeric.slice(0, decimalIndex).replace(/[.,]/g, '');
       const fractionalPart = numeric.slice(decimalIndex + 1).replace(/[.,]/g, '');
       normalized = `${integerPart}.${fractionalPart}`;

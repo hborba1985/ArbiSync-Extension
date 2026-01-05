@@ -456,8 +456,20 @@ console.log('🧩 content_mexc.js carregado');
 
   function parseLocaleNumber(value) {
     if (value == null) return null;
-    const cleaned = String(value).replace(/\s+/g, '').replace(',', '.');
-    const parsed = Number(cleaned.replace(/[^\d.-]/g, ''));
+    const cleaned = String(value).replace(/\s+/g, '');
+    const numeric = cleaned.replace(/[^\d.,-]/g, '');
+    const lastComma = numeric.lastIndexOf(',');
+    const lastDot = numeric.lastIndexOf('.');
+    const decimalIndex = Math.max(lastComma, lastDot);
+    let normalized = numeric;
+    if (decimalIndex !== -1) {
+      const integerPart = numeric.slice(0, decimalIndex).replace(/[.,]/g, '');
+      const fractionalPart = numeric.slice(decimalIndex + 1).replace(/[.,]/g, '');
+      normalized = `${integerPart}.${fractionalPart}`;
+    } else {
+      normalized = numeric.replace(/[.,]/g, '');
+    }
+    const parsed = Number(normalized.replace(/[^\d.-]/g, ''));
     return Number.isFinite(parsed) ? parsed : null;
   }
 

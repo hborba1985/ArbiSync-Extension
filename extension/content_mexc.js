@@ -793,23 +793,41 @@ console.log('🧩 content_mexc.js carregado');
       const data = msg.data || {};
       const settings = data.settings || {};
 
-      if (typeof data.askGate === 'number') setText('askGate', data.askGate.toFixed(11));
-      if (typeof data.bidMexc === 'number') setText('bidMexc', data.bidMexc.toFixed(11));
-      if (typeof data.spread === 'number') setText('spread', data.spread.toFixed(3) + '%');
+      const bestGateAsk = Number.isFinite(domBookCache.gate.askPrice)
+        ? domBookCache.gate.askPrice
+        : Number(data.askGate);
+      const bestGateBid = Number.isFinite(domBookCache.gate.bidPrice)
+        ? domBookCache.gate.bidPrice
+        : Number(data.bidGate);
+      const bestMexcBid = Number.isFinite(domBookCache.mexc.bidPrice)
+        ? domBookCache.mexc.bidPrice
+        : Number(data.bidMexc);
+      const bestMexcAsk = Number.isFinite(domBookCache.mexc.askPrice)
+        ? domBookCache.mexc.askPrice
+        : Number(data.askMexc);
+      const computedOpenSpread =
+        Number.isFinite(bestGateAsk) && Number.isFinite(bestMexcBid)
+          ? ((bestMexcBid - bestGateAsk) / bestGateAsk) * 100
+          : null;
+      if (Number.isFinite(bestGateAsk)) setText('askGate', bestGateAsk.toFixed(11));
+      if (Number.isFinite(bestMexcBid)) setText('bidMexc', bestMexcBid.toFixed(11));
+      if (Number.isFinite(computedOpenSpread)) {
+        setText('spread', computedOpenSpread.toFixed(3) + '%');
+      }
       const spreadOpen = document.getElementById('spreadOpen');
       const spreadClose = document.getElementById('spreadClose');
-      if (spreadOpen && typeof data.spread === 'number') {
-        spreadOpen.textContent = `${data.spread.toFixed(3)}%`;
-        spreadOpen.classList.toggle('positive', data.spread >= 0);
-        spreadOpen.classList.toggle('negative', data.spread < 0);
+      if (spreadOpen && Number.isFinite(computedOpenSpread)) {
+        spreadOpen.textContent = `${computedOpenSpread.toFixed(3)}%`;
+        spreadOpen.classList.toggle('positive', computedOpenSpread >= 0);
+        spreadOpen.classList.toggle('negative', computedOpenSpread < 0);
       }
       if (
         spreadClose &&
-        typeof data.bidGate === 'number' &&
-        typeof data.askMexc === 'number'
+        Number.isFinite(bestGateBid) &&
+        Number.isFinite(bestMexcAsk)
       ) {
         const closeSpread =
-          ((data.bidGate - data.askMexc) / data.askMexc) * 100;
+          ((bestGateBid - bestMexcAsk) / bestMexcAsk) * 100;
         spreadClose.textContent = `${closeSpread.toFixed(3)}%`;
         spreadClose.classList.toggle('positive', closeSpread >= 0);
         spreadClose.classList.toggle('negative', closeSpread < 0);

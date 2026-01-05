@@ -84,6 +84,7 @@ console.log('🧩 content_gate.js carregado');
             setText('coreStatus', 'CORE: desconectado');
           }
         });
+        setupMinimize();
         registerTab();
       })
       .catch((err) => {
@@ -95,6 +96,29 @@ console.log('🧩 content_gate.js carregado');
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = value;
+  }
+
+  function setupMinimize() {
+    const panel = document.getElementById('arb-panel');
+    const minimizeBtn = document.getElementById('minimizeOverlayBtn');
+    const minimizedToggle = document.getElementById('arb-minimized-toggle');
+    if (!panel || !minimizeBtn || !minimizedToggle) return;
+
+    const applyState = (minimized) => {
+      panel.classList.toggle('minimized', minimized);
+      minimizedToggle.classList.toggle('show', minimized);
+      minimizedToggle.style.display = minimized ? 'inline-flex' : 'none';
+    };
+
+    minimizeBtn.addEventListener('click', () => {
+      applyState(true);
+    });
+
+    minimizedToggle.addEventListener('click', () => {
+      applyState(false);
+    });
+
+    applyState(false);
   }
 
   function sendCommand(command) {

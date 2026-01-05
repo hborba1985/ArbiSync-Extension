@@ -1063,25 +1063,13 @@ console.log('🧩 content_gate.js carregado');
             const group = normalizeGroup(
               document.getElementById('arbGroup')?.value || currentGroup
             );
-            const shouldSync =
-              document.getElementById('syncExecutionEnabled')?.checked ?? false;
-            if (shouldSync) {
-              sendRuntimeMessage({
-                type: 'SYNC_TEST_EXECUTION',
-                payload,
-                group
-              }).then((response) => {
-                if (response?.status) updateLinkStatus(response.status);
-              });
-            } else {
-              window.postMessage(
-                {
-                  type: 'ARBSYNC_TEST_EXECUTION',
-                  payload
-                },
-                '*'
-              );
-            }
+            sendRuntimeMessage({
+              type: 'SYNC_LIVE_EXECUTION',
+              payload,
+              group
+            }).then((response) => {
+              if (response?.status) updateLinkStatus(response.status);
+            });
             if (shouldAutoOpen) lastAutoExecution.open = now;
             if (shouldAutoClose) lastAutoExecution.close = now;
           }

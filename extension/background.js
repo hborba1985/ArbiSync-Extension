@@ -192,6 +192,43 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
+  if (message.type === 'SYNC_LIVE_EXECUTION') {
+    const group = normalizeGroup(message.group);
+    const status = getGroupStatus(group);
+    const payload = message.payload || {};
+    const targetTabs = new Set();
+    if (group) {
+      status.gateTabs.forEach((tabId) => targetTabs.add(tabId));
+      status.mexcTabs.forEach((tabId) => targetTabs.add(tabId));
+    } else if (sender.tab?.id) {
+      targetTabs.add(sender.tab.id);
+    }
+
+    if (!group) {
+      for (const tabId of targetTabs) {
+        chrome.tabs.sendMessage(tabId, {
+          type: 'RUN_TEST_EXECUTION',
+          payload
+        }).catch(() => {
+          // Ignore missing content scripts
+        });
+      }
+      sendResponse({ ok: true, status });
+      return;
+    }
+
+    for (const tabId of targetTabs) {
+      chrome.tabs.sendMessage(tabId, {
+        type: 'RUN_TEST_EXECUTION',
+        payload
+      }).catch(() => {
+        // Ignore missing content scripts
+      });
+    }
+    sendResponse({ ok: true, status });
+    return;
+  }
+
   if (message.type === 'DOM_BOOK') {
     broadcastToTargetTabs({ type: 'DOM_BOOK', payload: message.payload });
     sendResponse({ ok: true });

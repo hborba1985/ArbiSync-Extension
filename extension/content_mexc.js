@@ -656,11 +656,17 @@ console.log('🧩 content_mexc.js carregado');
       const assetKey = baseAsset?.toUpperCase() || baseAsset;
       const gateQty = Number(gate[assetKey]?.qty) || 0;
       const mexcQty = Number(mexc[assetKey]?.qty) || 0;
+      let effectiveGateQty = gateQty;
+      let effectiveMexcQty = mexcQty;
+      let effectiveGateAvg = Number(gate[assetKey]?.avgPrice);
+      let effectiveMexcAvg = Number(mexc[assetKey]?.avgPrice);
       if (gateQty === 0 && mexcQty === 0) {
         const fallback = extractMexcExposure();
         if (fallback) {
           exposureState.asset = fallback.asset;
           updateActiveAssetLabel();
+          effectiveMexcQty = fallback.qty;
+          effectiveMexcAvg = fallback.avgPrice;
           persistExposureSnapshot(
             EXCHANGE,
             fallback.asset,
@@ -669,14 +675,17 @@ console.log('🧩 content_mexc.js carregado');
           );
         }
       }
-      const gateAvg = Number(gate[assetKey]?.avgPrice);
-      const mexcAvg = Number(mexc[assetKey]?.avgPrice);
+      const gateAvg = effectiveGateAvg;
+      const mexcAvg = effectiveMexcAvg;
       const exposureStatus = document.getElementById('exposureStatus');
       if (exposureStatus) {
         exposureStatus.textContent += ` storage[${assetKey}] gateQty="${gateQty}" mexcQty="${mexcQty}"`;
+        if (effectiveMexcQty !== mexcQty) {
+          exposureStatus.textContent += ` fallbackQty="${effectiveMexcQty}"`;
+        }
       }
-      const perAsset = Math.abs(gateQty) + Math.abs(mexcQty);
-      const perExchange = Math.abs(mexcQty);
+      const perAsset = Math.abs(effectiveGateQty) + Math.abs(effectiveMexcQty);
+      const perExchange = Math.abs(effectiveMexcQty);
       const global = Object.values(gate).reduce(
         (sum, entry) => sum + Math.abs(Number(entry?.qty) || 0),
         0
@@ -684,7 +693,15 @@ console.log('🧩 content_mexc.js carregado');
         (sum, entry) => sum + Math.abs(Number(entry?.qty) || 0),
         0
       );
-      renderWith(perAsset, perExchange, global, gateQty, mexcQty, gateAvg, mexcAvg);
+      renderWith(
+        perAsset,
+        perExchange,
+        global,
+        effectiveGateQty,
+        effectiveMexcQty,
+        gateAvg,
+        mexcAvg
+      );
     });
   }
 

@@ -463,10 +463,17 @@ console.log('🧩 content_mexc.js carregado');
 
   function parseTokenAmount(value) {
     if (!value) return { qty: null, asset: null };
-    const cleaned = String(value).replace(/\s+/g, ' ').trim();
+    const cleaned = String(value)
+      .replace(/["']/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
     const parts = cleaned.split(' ');
     const qty = parseLocaleNumber(parts[0]);
-    const asset = parts.slice(1).join(' ').trim() || null;
+    const asset = parts
+      .slice(1)
+      .join(' ')
+      .replace(/[^A-Za-z0-9-]/g, '')
+      .trim() || null;
     return { qty, asset };
   }
 

@@ -645,7 +645,15 @@ console.log('🧩 content_gate.js carregado');
     const perAssetLimit = Number(settings.exposurePerAsset);
     const globalLimit = Number(settings.exposureGlobal);
     const baseAsset = exposureState.asset || getAssetFromPair(latestPairs.gate);
-    const renderWith = (perAsset, perExchange, global, gateQty, mexcQty) => {
+    const renderWith = (
+      perAsset,
+      perExchange,
+      global,
+      gateQty,
+      mexcQty,
+      gateAvg,
+      mexcAvg
+    ) => {
       const formatExposure = (value, limit) => {
         if (!Number.isFinite(value) || !Number.isFinite(limit)) return '--';
         return `${value.toFixed(4)} / ${limit.toFixed(4)}`;
@@ -667,16 +675,23 @@ console.log('🧩 content_gate.js carregado');
         if (!el) return;
         el.textContent = formatQty(value);
       };
+      const setAvg = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = Number.isFinite(value) ? value.toFixed(6) : '--';
+      };
 
       setExposure('exposureAsset', perAsset, perAssetLimit);
       setExposure('exposureExchange', perExchange, perExchangeLimit);
       setExposure('exposureGlobalStatus', global, globalLimit);
       setQty('exposureGateQty', gateQty);
       setQty('exposureMexcQty', mexcQty);
+      setAvg('exposureGateAvg', gateAvg);
+      setAvg('exposureMexcAvg', mexcAvg);
     };
 
     if (!baseAsset) {
-      renderWith(0, 0, 0, 0, 0);
+      renderWith(0, 0, 0, 0, 0, null, null);
       return;
     }
 
@@ -686,6 +701,22 @@ console.log('🧩 content_gate.js carregado');
       const assetKey = baseAsset?.toUpperCase() || baseAsset;
       const gateQty = Number(gate[assetKey]?.qty) || 0;
       const mexcQty = Number(mexc[assetKey]?.qty) || 0;
+      if (gateQty === 0 && mexcQty === 0) {
+        const fallback = extractGateExposure();
+        if (fallback) {
+          exposureState.asset = fallback.asset;
+          updateActiveAssetLabel();
+          const trades = extractGateTrades();
+          const avgPrice = computeGateAveragePrice(
+            fallback.asset,
+            fallback.qty,
+            trades
+          );
+          persistExposureSnapshot(EXCHANGE, fallback.asset, fallback.qty, avgPrice);
+        }
+      }
+      const gateAvg = Number(gate[assetKey]?.avgPrice);
+      const mexcAvg = Number(mexc[assetKey]?.avgPrice);
       const perAsset = Math.abs(gateQty) + Math.abs(mexcQty);
       const perExchange = Math.abs(gateQty);
       const global = Object.values(gate).reduce(
@@ -695,7 +726,7 @@ console.log('🧩 content_gate.js carregado');
         (sum, entry) => sum + Math.abs(Number(entry?.qty) || 0),
         0
       );
-      renderWith(perAsset, perExchange, global, gateQty, mexcQty);
+      renderWith(perAsset, perExchange, global, gateQty, mexcQty, gateAvg, mexcAvg);
     });
   }
 

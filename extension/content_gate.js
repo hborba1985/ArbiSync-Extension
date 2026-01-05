@@ -17,6 +17,7 @@ console.log('🧩 content_gate.js carregado');
   let currentGroup = sessionStorage.getItem(GROUP_STORAGE_KEY) || '';
   const latestPairs = { gate: '', mexc: '' };
   const exposureState = { exchange: EXCHANGE, asset: null };
+  let latestSettings = {};
 
   function safeStorageGet(key) {
     return new Promise((resolve) => {
@@ -110,11 +111,15 @@ console.log('🧩 content_gate.js carregado');
       minimizedToggle.style.display = minimized ? 'inline-flex' : 'none';
     };
 
-    minimizeBtn.addEventListener('click', () => {
+    minimizeBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       applyState(true);
     });
 
-    minimizedToggle.addEventListener('click', () => {
+    minimizedToggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
       applyState(false);
     });
 
@@ -629,11 +634,13 @@ console.log('🧩 content_gate.js carregado');
     const perAssetLimit = Number(settings.exposurePerAsset);
     const globalLimit = Number(settings.exposureGlobal);
     const baseAsset = exposureState.asset;
-    const renderWith = (perAsset, perExchange, global) => {
+    const renderWith = (perAsset, perExchange, global, gateQty, mexcQty) => {
       const formatExposure = (value, limit) => {
         if (!Number.isFinite(value) || !Number.isFinite(limit)) return '--';
         return `${value.toFixed(4)} / ${limit.toFixed(4)}`;
       };
+      const formatQty = (value) =>
+        Number.isFinite(value) ? value.toFixed(4) : '--';
 
       const setExposure = (id, value, limit) => {
         const el = document.getElementById(id);
@@ -644,14 +651,21 @@ console.log('🧩 content_gate.js carregado');
           el.classList.add(value <= limit ? 'positive' : 'negative');
         }
       };
+      const setQty = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = formatQty(value);
+      };
 
       setExposure('exposureAsset', perAsset, perAssetLimit);
       setExposure('exposureExchange', perExchange, perExchangeLimit);
       setExposure('exposureGlobalStatus', global, globalLimit);
+      setQty('exposureGateQty', gateQty);
+      setQty('exposureMexcQty', mexcQty);
     };
 
     if (!baseAsset) {
-      renderWith(0, 0, 0);
+      renderWith(0, 0, 0, 0, 0);
       return;
     }
 
@@ -669,7 +683,7 @@ console.log('🧩 content_gate.js carregado');
         (sum, entry) => sum + Math.abs(Number(entry?.qty) || 0),
         0
       );
-      renderWith(perAsset, perExchange, global);
+      renderWith(perAsset, perExchange, global, gateQty, mexcQty);
     });
   }
 
@@ -695,7 +709,8 @@ console.log('🧩 content_gate.js carregado');
         exposure.qty,
         trades
       );
-      persistExposureSnapshot(EXCHANGE, exposure.asset, exposure.qty, avgPrice);
+      persistExposureSnapshot(EXCHANGE, exposure.asset, exposure.qty, avgPrice)
+        .then(() => updateExposurePanel(latestSettings));
     };
     poll();
     setInterval(poll, 3000);
@@ -849,6 +864,7 @@ console.log('🧩 content_gate.js carregado');
     if (msg.type === 'CORE_DATA') {
       const data = msg.data || {};
       const settings = data.settings || {};
+      latestSettings = settings;
 
       const bestGateAsk = Number.isFinite(domBookCache.gate.askPrice)
         ? domBookCache.gate.askPrice

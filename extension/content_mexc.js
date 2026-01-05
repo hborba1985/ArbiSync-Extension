@@ -557,6 +557,12 @@ console.log('🧩 content_mexc.js carregado');
     const priceEl = document.querySelector(
       '#mexc-web-inspection-futures-exchange-current-position > div.ant-table-wrapper.Position_positionTable__0FikK.Position_positionTableFixedColumn__HRSBx > div > div > div > div > div > table > tbody > tr.ant-table-row.ant-table-row-level-0 > td:nth-child(3) > span'
     );
+    const exposureStatus = document.getElementById('exposureStatus');
+    if (exposureStatus) {
+      const rawText = exposureEl?.textContent?.trim() || 'n/d';
+      const rawPrice = priceEl?.textContent?.trim() || 'n/d';
+      exposureStatus.textContent = `EXPOSIÇÃO: raw="${rawText}" avg="${rawPrice}"`;
+    }
     const { qty, asset } = parseTokenAmount(exposureEl?.textContent);
     const avgPrice = parseLocaleNumber(priceEl?.textContent);
     if (!Number.isFinite(qty) || !asset) return null;

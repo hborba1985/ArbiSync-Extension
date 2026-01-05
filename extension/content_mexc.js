@@ -571,12 +571,14 @@ console.log('🧩 content_mexc.js carregado');
     const rawText = exposureEl?.textContent?.trim() || 'n/d';
     const rawPrice = priceEl?.textContent?.trim() || 'n/d';
     if (exposureStatus) {
-      exposureStatus.textContent = `EXPOSIÇÃO: raw="${rawText}" avg="${rawPrice}"`;
+      exposureStatus.dataset.base = `EXPOSIÇÃO: raw="${rawText}" avg="${rawPrice}"`;
+      exposureStatus.textContent = exposureStatus.dataset.base;
     }
     const { qty, asset } = parseTokenAmount(exposureEl?.textContent);
     const avgPrice = parseLocaleNumber(priceEl?.textContent);
     if (exposureStatus) {
-      exposureStatus.textContent += ` parsedQty="${qty ?? 'n/d'}" asset="${asset ?? 'n/d'}"`;
+      exposureStatus.dataset.base = `EXPOSIÇÃO: raw="${rawText}" avg="${rawPrice}" parsedQty="${qty ?? 'n/d'}" asset="${asset ?? 'n/d'}"`;
+      exposureStatus.textContent = exposureStatus.dataset.base;
     }
     if (!Number.isFinite(qty) || !asset) return null;
     return { qty, asset, avgPrice };
@@ -689,10 +691,10 @@ console.log('🧩 content_mexc.js carregado');
       const mexcAvg = effectiveMexcAvg;
       const exposureStatus = document.getElementById('exposureStatus');
       if (exposureStatus) {
-        exposureStatus.textContent += ` storage[${assetKey}] gateQty="${gateQty}" mexcQty="${mexcQty}"`;
-        if (effectiveMexcQty !== mexcQty) {
-          exposureStatus.textContent += ` fallbackQty="${effectiveMexcQty}"`;
-        }
+        const base = exposureStatus.dataset.base || 'EXPOSIÇÃO: --';
+        const fallbackNote =
+          effectiveMexcQty !== mexcQty ? ` fallbackQty="${effectiveMexcQty}"` : '';
+        exposureStatus.textContent = `${base} storage[${assetKey}] gateQty="${gateQty}" mexcQty="${mexcQty}"${fallbackNote}`;
       }
       const perAsset = Math.abs(effectiveGateQty) + Math.abs(effectiveMexcQty);
       const perExchange = Math.abs(effectiveMexcQty);

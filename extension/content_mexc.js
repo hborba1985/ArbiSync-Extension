@@ -497,6 +497,7 @@ console.log('🧩 content_mexc.js carregado');
     if (latestPairs.mexc === pair) return;
     latestPairs.mexc = pair;
     exposureState.asset = getAssetFromPair(pair) || exposureState.asset;
+    updateActiveAssetLabel();
     sendCommand({
       action: 'UPDATE_SETTINGS',
       settings: {
@@ -596,8 +597,9 @@ console.log('🧩 content_mexc.js carregado');
     readExposureSnapshot().then((snapshot) => {
       const gate = snapshot.GATE || {};
       const mexc = snapshot.MEXC || {};
-      const gateQty = Number(gate[baseAsset]?.qty) || 0;
-      const mexcQty = Number(mexc[baseAsset]?.qty) || 0;
+      const assetKey = baseAsset?.toUpperCase() || baseAsset;
+      const gateQty = Number(gate[assetKey]?.qty) || 0;
+      const mexcQty = Number(mexc[assetKey]?.qty) || 0;
       const perAsset = Math.abs(gateQty) + Math.abs(mexcQty);
       const perExchange = Math.abs(mexcQty);
       const global = Object.values(gate).reduce(
@@ -609,6 +611,13 @@ console.log('🧩 content_mexc.js carregado');
       );
       renderWith(perAsset, perExchange, global, gateQty, mexcQty);
     });
+  }
+
+  function updateActiveAssetLabel() {
+    const asset = exposureState.asset || getAssetFromPair(latestPairs.mexc);
+    const el = document.getElementById('activeAsset');
+    if (!el) return;
+    el.textContent = asset ? `(${asset})` : '--';
   }
 
   function updatePositionPanel(snapshot) {
@@ -667,6 +676,7 @@ console.log('🧩 content_mexc.js carregado');
       const exposure = extractMexcExposure();
       if (!exposure) return;
       exposureState.asset = exposure.asset;
+      updateActiveAssetLabel();
       persistExposureSnapshot(
         EXCHANGE,
         exposure.asset,
@@ -841,6 +851,7 @@ console.log('🧩 content_mexc.js carregado');
       const data = msg.data || {};
       const settings = data.settings || {};
       latestSettings = settings;
+      updateActiveAssetLabel();
 
       const bestGateAsk = Number.isFinite(domBookCache.gate.askPrice)
         ? domBookCache.gate.askPrice

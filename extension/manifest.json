@@ -3,7 +3,7 @@
   "name": "Arbitrage Assistant",
   "version": "0.1",
   "description": "Assistente de arbitragem Gate Spot + MEXC Futuros",
-  "permissions": ["tabs"],
+  "permissions": ["tabs", "storage"],
   "host_permissions": [
     "https://www.gate.io/*",
     "https://www.gate.com/*",

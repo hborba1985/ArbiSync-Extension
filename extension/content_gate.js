@@ -454,7 +454,7 @@ console.log('🧩 content_gate.js carregado');
       '#trade-assets-container > div > div.flex.flex-col.gap-3.pt-4 > div:nth-child(2)'
     );
     const text = balanceEl?.textContent || '';
-    const match = text.match(/([\d.,]+)\s*([A-Za-z]+)/);
+    const match = text.match(/([\d.,]+)\s*([A-Za-z0-9-]+)/);
     if (!match) return null;
     const qty = parseLocaleNumber(match[1]);
     const asset = match[2];

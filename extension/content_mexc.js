@@ -608,57 +608,55 @@ console.log('🧩 content_mexc.js carregado');
   const executionLog = { open: null, close: null };
 
   function updateExposurePanel(settings) {
-    const perExchangeLimit = Number(settings.exposurePerExchange);
-    const perAssetLimit = Number(settings.exposurePerAsset);
-    const globalLimit = Number(settings.exposureGlobal);
     const baseAsset = exposureState.asset || getAssetFromPair(latestPairs.mexc);
     const renderWith = (
-      perAsset,
-      perExchange,
-      global,
       gateQty,
       mexcQty,
       gateAvg,
       mexcAvg
     ) => {
-      const formatExposure = (value, limit) => {
-        if (!Number.isFinite(value) || !Number.isFinite(limit)) return '--';
-        return `${value.toFixed(4)} / ${limit.toFixed(4)}`;
-      };
       const formatQty = (value) =>
-        Number.isFinite(value) ? value.toFixed(4) : '--';
+        Number.isFinite(value)
+          ? value.toLocaleString('pt-BR', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            })
+          : '--';
+      const formatAvg = (value) =>
+        Number.isFinite(value) ? value.toFixed(6) : '--';
+      const formatSpread = (value) =>
+        Number.isFinite(value) ? `${value.toFixed(3)}%` : '--';
 
-      const setExposure = (id, value, limit) => {
-        const el = document.getElementById(id);
-        if (!el) return;
-        el.classList.remove('positive', 'negative');
-        el.textContent = formatExposure(value, limit);
-        if (Number.isFinite(value) && Number.isFinite(limit)) {
-          el.classList.add(value <= limit ? 'positive' : 'negative');
-        }
-      };
       const setQty = (id, value) => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.textContent = formatQty(value);
+        const label = id === 'exposureGateQty' ? 'GATE' : 'MEXC';
+        el.textContent = `${label}: ${formatQty(value)}`;
       };
       const setAvg = (id, value) => {
         const el = document.getElementById(id);
         if (!el) return;
-        el.textContent = Number.isFinite(value) ? value.toFixed(6) : '--';
+        el.textContent = `Médio: ${formatAvg(value)}`;
+      };
+      const setTotalSpread = (value) => {
+        const el = document.getElementById('exposureTotalSpread');
+        if (!el) return;
+        el.textContent = formatSpread(value);
       };
 
-      setExposure('exposureAsset', perAsset, perAssetLimit);
-      setExposure('exposureExchange', perExchange, perExchangeLimit);
-      setExposure('exposureGlobalStatus', global, globalLimit);
       setQty('exposureGateQty', gateQty);
       setQty('exposureMexcQty', mexcQty);
       setAvg('exposureGateAvg', gateAvg);
       setAvg('exposureMexcAvg', mexcAvg);
+      const totalSpread =
+        Number.isFinite(gateAvg) && Number.isFinite(mexcAvg) && gateAvg > 0
+          ? ((mexcAvg - gateAvg) / gateAvg) * 100
+          : null;
+      setTotalSpread(totalSpread);
     };
 
     if (!baseAsset) {
-      renderWith(0, 0, 0, 0, 0, null, null);
+      renderWith(0, 0, null, null);
       return;
     }
 
@@ -696,24 +694,7 @@ console.log('🧩 content_mexc.js carregado');
           effectiveMexcQty !== mexcQty ? ` fallbackQty="${effectiveMexcQty}"` : '';
         exposureStatus.textContent = `${base} storage[${assetKey}] gateQty="${gateQty}" mexcQty="${mexcQty}"${fallbackNote}`;
       }
-      const perAsset = Math.abs(effectiveGateQty) + Math.abs(effectiveMexcQty);
-      const perExchange = Math.abs(effectiveMexcQty);
-      const global = Object.values(gate).reduce(
-        (sum, entry) => sum + Math.abs(Number(entry?.qty) || 0),
-        0
-      ) + Object.values(mexc).reduce(
-        (sum, entry) => sum + Math.abs(Number(entry?.qty) || 0),
-        0
-      );
-      renderWith(
-        perAsset,
-        perExchange,
-        global,
-        effectiveGateQty,
-        effectiveMexcQty,
-        gateAvg,
-        mexcAvg
-      );
+      renderWith(effectiveGateQty, effectiveMexcQty, gateAvg, mexcAvg);
     });
   }
 
@@ -742,7 +723,6 @@ console.log('🧩 content_mexc.js carregado');
     const closeMexc = document.getElementById('closeMexcPrice');
     const closeVolume = document.getElementById('closeVolume');
     const closeSpread = document.getElementById('closeSpread');
-    const totalSpread = document.getElementById('positionTotalSpread');
 
     if (openGate) openGate.textContent = formatNumber(open?.gatePrice, 11);
     if (openMexc) openMexc.textContent = formatNumber(open?.mexcPrice, 11);
@@ -753,15 +733,6 @@ console.log('🧩 content_mexc.js carregado');
     if (closeVolume) closeVolume.textContent = formatNumber(close?.spotVolume, 4);
     if (closeSpread) closeSpread.textContent = formatNumber(close?.spread, 3) + '%';
 
-    const total =
-      Number.isFinite(open?.spread) && Number.isFinite(close?.spread)
-        ? open.spread + close.spread
-        : null;
-    if (totalSpread) {
-      totalSpread.textContent = Number.isFinite(total)
-        ? `${total.toFixed(3)}%`
-        : '--';
-    }
   }
 
   function syncExecutionLog(payload) {

@@ -31,10 +31,6 @@
       <div class="position-detail"><span>Spread</span><b id="closeSpread">--</b></div>
     </div>
   </div>
-  <div class="position-total">
-    <span>Spread geral da posição</span>
-    <b id="positionTotalSpread">--</b>
-  </div>
   <div class="spread-panel">
     <div class="spread-card">
       <div class="spread-title">ENTRADA</div>
@@ -43,6 +39,26 @@
     <div class="spread-card">
       <div class="spread-title">SAÍDA</div>
       <div class="spread-value" id="spreadClose">--</div>
+    </div>
+  </div>
+
+  <div class="section-title">Exposição atual</div>
+  <div class="status" id="exposureStatus">EXPOSIÇÃO: aguardando...</div>
+  <div class="status" id="storageStatus">STORAGE: --</div>
+  <div class="exposure-summary">
+    <div class="exposure-row">
+      <span id="exposureGateQty">GATE: --</span>
+      <span class="exposure-divider">|</span>
+      <span id="exposureMexcQty">MEXC: --</span>
+    </div>
+    <div class="exposure-row">
+      <span id="exposureGateAvg">Médio: --</span>
+      <span class="exposure-divider">|</span>
+      <span id="exposureMexcAvg">Médio: --</span>
+    </div>
+    <div class="exposure-row exposure-total">
+      <span>Spread geral da posição</span>
+      <b id="exposureTotalSpread">--</b>
     </div>
   </div>
 
@@ -89,40 +105,6 @@
       </div>
     </div>
   </details>
-  <div class="section-title">Exposição atual</div>
-  <div class="status" id="exposureStatus">EXPOSIÇÃO: aguardando...</div>
-  <div class="status" id="storageStatus">STORAGE: --</div>
-  <div class="exposure-panel">
-    <div class="exposure-item">
-      <span>Por ativo</span>
-      <b id="exposureAsset">--</b>
-    </div>
-    <div class="exposure-item">
-      <span>Por exchange</span>
-      <b id="exposureExchange">--</b>
-    </div>
-    <div class="exposure-item">
-      <span>Global</span>
-      <b id="exposureGlobalStatus">--</b>
-    </div>
-    <div class="exposure-item">
-      <span>Gate (tokens)</span>
-      <b id="exposureGateQty">--</b>
-    </div>
-    <div class="exposure-item">
-      <span>MEXC (tokens)</span>
-      <b id="exposureMexcQty">--</b>
-    </div>
-    <div class="exposure-item">
-      <span>Gate preço médio</span>
-      <b id="exposureGateAvg">--</b>
-    </div>
-    <div class="exposure-item">
-      <span>MEXC preço médio</span>
-      <b id="exposureMexcAvg">--</b>
-    </div>
-  </div>
-
   <div class="status" id="coreStatus">CORE: aguardando...</div>
   <div class="status" id="syncStatus">SYNC: aguardando Tampermonkey</div>
 

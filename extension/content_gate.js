@@ -1138,7 +1138,7 @@ console.log('🧩 content_gate.js carregado');
           (Number.isFinite(spreadOpen) && spreadOpen >= spreadMinOpen);
         const closeSpreadOk =
           !hasSpreadMinClose ||
-          (Number.isFinite(spreadClose) && spreadClose >= spreadMinClose);
+          (Number.isFinite(spreadClose) && spreadClose <= spreadMinClose);
         const openLiquidityOk =
           !Number.isFinite(minLiquidityOpen) ||
           minLiquidityOpen <= 0 ||

@@ -473,7 +473,20 @@ console.log('🧩 content_gate.js carregado');
 
   function parseLocaleNumber(value) {
     if (value == null) return null;
-    const cleaned = String(value).replace(/\s+/g, '').replace(',', '.');
+    const raw = String(value).replace(/\s+/g, '');
+    let cleaned = raw.replace(/[^\d,.-]/g, '');
+    if (cleaned.includes(',') && cleaned.includes('.')) {
+      cleaned = cleaned.replace(/\./g, '').replace(',', '.');
+    } else {
+      cleaned = cleaned.replace(',', '.');
+      const dotCount = (cleaned.match(/\./g) || []).length;
+      if (dotCount > 1) {
+        const lastDot = cleaned.lastIndexOf('.');
+        cleaned = `${cleaned.slice(0, lastDot).replace(/\./g, '')}${cleaned.slice(
+          lastDot
+        )}`;
+      }
+    }
     const parsed = Number(cleaned.replace(/[^\d.-]/g, ''));
     return Number.isFinite(parsed) ? parsed : null;
   }
@@ -718,7 +731,12 @@ console.log('🧩 content_gate.js carregado');
         return `${value.toFixed(4)} / ${limit.toFixed(4)}`;
       };
       const formatQty = (value) =>
-        Number.isFinite(value) ? value.toFixed(4) : '--';
+        Number.isFinite(value)
+          ? value.toLocaleString('pt-BR', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            })
+          : '--';
 
       const setExposure = (id, value, limit) => {
         const el = document.getElementById(id);

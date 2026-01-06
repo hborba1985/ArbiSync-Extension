@@ -749,7 +749,13 @@ console.log('🧩 content_mexc.js carregado');
   function startExposurePolling() {
     const poll = () => {
       const exposure = extractMexcExposure();
-      if (!exposure) return;
+      const baseAsset = exposureState.asset || getAssetFromPair(latestPairs.mexc);
+      if (!exposure) {
+        if (!baseAsset) return;
+        persistExposureSnapshot(EXCHANGE, baseAsset, 0, null)
+          .then(() => updateExposurePanel(latestSettings));
+        return;
+      }
       exposureState.asset = exposure.asset;
       updateActiveAssetLabel();
       persistExposureSnapshot(

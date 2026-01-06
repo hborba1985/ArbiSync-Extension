@@ -161,10 +161,29 @@
       return;
     }
 
-    const getQtyInput = () =>
-      document.querySelector(
-        '#mexc_contract_v_open_position > div > div.component_inputWrapper__LP4Dm > div.component_numberInput__PF7Vf > div > div.InputNumberHandle_inputOuterWrapper__8w_l1 > div > div > input, input[placeholder*="Quantidade"], input[placeholder*="Qty"]'
+    const getQtyInput = (mode = 'open') => {
+      const selectors = mode === 'close'
+        ? [
+            '#mexc_contract_v_close_position input[placeholder*="Quantidade"]',
+            '#mexc_contract_v_close_position input[placeholder*="Qty"]',
+            '#mexc_contract_v_close_position input[type="text"]',
+            '#mexc_contract_v_close_position input[type="number"]'
+          ]
+        : [
+            '#mexc_contract_v_open_position > div > div.component_inputWrapper__LP4Dm > div.component_numberInput__PF7Vf > div > div.InputNumberHandle_inputOuterWrapper__8w_l1 > div > div > input',
+            '#mexc_contract_v_open_position input[placeholder*="Quantidade"]',
+            '#mexc_contract_v_open_position input[placeholder*="Qty"]',
+            '#mexc_contract_v_open_position input[type="text"]',
+            '#mexc_contract_v_open_position input[type="number"]'
+          ];
+      for (const selector of selectors) {
+        const input = document.querySelector(selector);
+        if (input) return input;
+      }
+      return document.querySelector(
+        'input[placeholder*="Quantidade"], input[placeholder*="Qty"]'
       );
+    };
     const findSellButton = () =>
       document.querySelector(
         'button[data-testid="contract-trade-open-short-btn"]'
@@ -182,22 +201,25 @@
         '#mexc_contract_v_open_position_info_login'
       );
 
-    const setContracts = () => {
-      const qtyInput = getQtyInput();
+    const setContracts = (mode) => {
+      const qtyInput = getQtyInput(mode);
       if (!qtyInput) return null;
       setNativeValue(qtyInput, String(contracts));
       dispatchInputEvents(qtyInput);
       return qtyInput;
     };
 
-    if (!getQtyInput()) {
+    if (!getQtyInput('open') && !getQtyInput('close')) {
       console.warn('[ArbiSync] Ajuste os seletores MEXC FUTUROS');
       return;
     }
 
     if (context.modes?.openEnabled) {
       await activateMexcTab('open');
-      setContracts();
+      if (!setContracts('open')) {
+        sendAlert('Não encontrei o campo Quantidade na aba Abrir da MEXC.');
+        return;
+      }
       const sellButton = findSellButton();
       if (sellButton) {
         sellButton.click();
@@ -207,7 +229,10 @@
     }
     if (context.modes?.closeEnabled) {
       await activateMexcTab('close');
-      setContracts();
+      if (!setContracts('close')) {
+        sendAlert('Não encontrei o campo Quantidade na aba Fechar da MEXC.');
+        return;
+      }
       const closeButton = findCloseButton();
       if (closeButton) {
         closeButton.click();

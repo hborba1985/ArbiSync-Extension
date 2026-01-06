@@ -531,15 +531,56 @@ console.log('🧩 content_gate.js carregado');
     setInterval(check, 1000);
   }
 
-  function extractGateExposure() {
-    const balanceEl = document.querySelector(
-      '#trade-assets-container > div > div.flex.flex-col.gap-3.pt-4 > div:nth-child(2)'
-    );
-    const text = balanceEl?.textContent || '';
-    const match = text.match(/([\d.,]+)\s*([A-Za-z0-9-]+)/);
-    if (!match) return null;
-    const qty = parseLocaleNumber(match[1]);
-    const asset = match[2];
+  function extractGateExposure(expectedAsset) {
+    const selectors = [
+      '#trade-assets-container > div > div.flex.flex-col.gap-3.pt-4 > div:nth-child(2)',
+      '#trade-assets-container [class*="asset"]',
+      '#trade-assets-container'
+    ];
+    const texts = selectors
+      .map((selector) => document.querySelector(selector))
+      .filter(Boolean)
+      .map((el) => el.textContent?.trim())
+      .filter(Boolean);
+    const exposureStatus = document.getElementById('exposureStatus');
+    if (!texts.length) {
+      if (exposureStatus) {
+        exposureStatus.dataset.base = 'EXPOSIÇÃO: aguardando...';
+        exposureStatus.textContent = exposureStatus.dataset.base;
+      }
+      return null;
+    }
+    const assetHint = expectedAsset?.toUpperCase?.() || null;
+    let matched = null;
+    for (const text of texts) {
+      if (assetHint) {
+        const assetMatch = text.match(
+          new RegExp(`([\\d.,]+)\\s*${assetHint}\\b`, 'i')
+        );
+        if (assetMatch) {
+          matched = { text, match: assetMatch };
+          break;
+        }
+      }
+      const genericMatch = text.match(/([\d.,]+)\s*([A-Za-z0-9-]+)/);
+      if (genericMatch) {
+        matched = { text, match: genericMatch };
+        break;
+      }
+    }
+    const rawText = matched?.text || texts[0];
+    if (exposureStatus) {
+      exposureStatus.dataset.base = `EXPOSIÇÃO: raw="${rawText}"`;
+      exposureStatus.textContent = exposureStatus.dataset.base;
+    }
+    if (!matched) return null;
+    const qty = parseLocaleNumber(matched.match[1]);
+    const asset = matched.match[2];
+    if (exposureStatus) {
+      exposureStatus.dataset.base =
+        `EXPOSIÇÃO: raw="${rawText}" parsedQty="${qty ?? 'n/d'}" asset="${asset ?? 'n/d'}"`;
+      exposureStatus.textContent = exposureStatus.dataset.base;
+    }
     if (!Number.isFinite(qty) || !asset) return null;
     return { qty, asset };
   }
@@ -710,12 +751,13 @@ console.log('🧩 content_gate.js carregado');
       const gate = snapshot.GATE || {};
       const mexc = snapshot.MEXC || {};
       const assetKey = baseAsset?.toUpperCase() || baseAsset;
-      let gateQty = Number(gate[assetKey]?.qty) || 0;
+      const storedGateQty = Number(gate[assetKey]?.qty) || 0;
+      let gateQty = storedGateQty;
       let mexcQty = Number(mexc[assetKey]?.qty) || 0;
       let gateAvg = Number(gate[assetKey]?.avgPrice);
       const mexcAvg = Number(mexc[assetKey]?.avgPrice);
       if (gateQty === 0) {
-        const fallback = extractGateExposure();
+        const fallback = extractGateExposure(assetKey);
         if (fallback) {
           const normalizedAsset = fallback.asset.toUpperCase();
           exposureState.asset = normalizedAsset;
@@ -730,6 +772,14 @@ console.log('🧩 content_gate.js carregado');
           gateAvg = Number.isFinite(avgPrice) ? avgPrice : gateAvg;
           persistExposureSnapshot(EXCHANGE, normalizedAsset, fallback.qty, avgPrice);
         }
+      }
+      const exposureStatus = document.getElementById('exposureStatus');
+      if (exposureStatus) {
+        const base = exposureStatus.dataset.base || 'EXPOSIÇÃO: --';
+        const fallbackNote =
+          gateQty !== storedGateQty ? ` fallbackQty="${gateQty}"` : '';
+        exposureStatus.textContent =
+          `${base} storage[${assetKey}] gateQty="${storedGateQty}" mexcQty="${mexcQty}"${fallbackNote}`;
       }
       const perAsset = Math.abs(gateQty) + Math.abs(mexcQty);
       const perExchange = Math.abs(gateQty);
@@ -764,7 +814,7 @@ console.log('🧩 content_gate.js carregado');
 
   function startExposurePolling() {
     const poll = () => {
-      const exposure = extractGateExposure();
+      const exposure = extractGateExposure(exposureState.asset);
       if (!exposure) return;
       const normalizedAsset = exposure.asset.toUpperCase();
       exposureState.asset = normalizedAsset;

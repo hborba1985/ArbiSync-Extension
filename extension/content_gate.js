@@ -709,8 +709,10 @@ console.log('🧩 content_gate.js carregado');
       const gate = snapshot.GATE || {};
       const mexc = snapshot.MEXC || {};
       const assetKey = baseAsset?.toUpperCase() || baseAsset;
-      const gateQty = Number(gate[assetKey]?.qty) || 0;
-      const mexcQty = Number(mexc[assetKey]?.qty) || 0;
+      let gateQty = Number(gate[assetKey]?.qty) || 0;
+      let mexcQty = Number(mexc[assetKey]?.qty) || 0;
+      let gateAvg = Number(gate[assetKey]?.avgPrice);
+      const mexcAvg = Number(mexc[assetKey]?.avgPrice);
       if (gateQty === 0 && mexcQty === 0) {
         const fallback = extractGateExposure();
         if (fallback) {
@@ -722,11 +724,11 @@ console.log('🧩 content_gate.js carregado');
             fallback.qty,
             trades
           );
+          gateQty = fallback.qty;
+          gateAvg = Number.isFinite(avgPrice) ? avgPrice : gateAvg;
           persistExposureSnapshot(EXCHANGE, fallback.asset, fallback.qty, avgPrice);
         }
       }
-      const gateAvg = Number(gate[assetKey]?.avgPrice);
-      const mexcAvg = Number(mexc[assetKey]?.avgPrice);
       const perAsset = Math.abs(gateQty) + Math.abs(mexcQty);
       const perExchange = Math.abs(gateQty);
       const global = Object.values(gate).reduce(

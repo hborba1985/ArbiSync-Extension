@@ -16,7 +16,7 @@ console.log('🧩 content_gate.js carregado');
   };
   let currentGroup = sessionStorage.getItem(GROUP_STORAGE_KEY) || '';
   const latestPairs = { gate: '', mexc: '' };
-  const exposureState = { exchange: EXCHANGE, asset: null };
+  const exposureState = { exchange: EXCHANGE, asset: null, gateQty: null };
   let latestSettings = {};
 
   function safeStorageGet(key) {
@@ -794,6 +794,7 @@ console.log('🧩 content_gate.js carregado');
         exposureStatus.textContent =
           `${base} storage[${assetKey}] gateQty="${storedGateQty}" mexcQty="${mexcQty}"${fallbackNote}`;
       }
+      exposureState.gateQty = gateQty;
       renderWith(gateQty, mexcQty, gateAvg, mexcAvg);
     });
   }
@@ -1183,13 +1184,24 @@ console.log('🧩 content_gate.js carregado');
         if (shouldAutoOpen || shouldAutoClose) {
           const spotVolume = Number(settings.spotVolume);
           const futuresContracts = spotVolume;
-          if (Number.isFinite(spotVolume) && spotVolume > 0 && futuresContracts > 0) {
+          const gateAvailable = Number(exposureState.gateQty);
+          const gateSpotVolume =
+            Number.isFinite(gateAvailable) &&
+            gateAvailable > 0 &&
+            gateAvailable < spotVolume
+              ? gateAvailable
+              : spotVolume;
+          if (
+            Number.isFinite(spotVolume) &&
+            spotVolume > 0 &&
+            futuresContracts > 0
+          ) {
             const logPayload = {
               open: shouldAutoOpen
                 ? {
                     gatePrice: gateAskPx,
                     mexcPrice: mexcBidPx,
-                    spotVolume,
+                    spotVolume: gateSpotVolume,
                     futuresContracts,
                     spread: spreadOpen
                   }
@@ -1198,20 +1210,20 @@ console.log('🧩 content_gate.js carregado');
                 ? {
                     gatePrice: gateBidPx,
                     mexcPrice: mexcAskPx,
-                    spotVolume,
+                    spotVolume: gateSpotVolume,
                     futuresContracts,
                     spread: spreadClose
                   }
                 : null,
               snapshot: {
-                spotVolume,
+                spotVolume: gateSpotVolume,
                 futuresContracts
               }
             };
             syncExecutionLog(logPayload);
             sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
             const payload = {
-              spotVolume,
+              spotVolume: gateSpotVolume,
               futuresContracts,
               pairGate: data.pairGate || '',
               pairMexc: data.pairMexc || '',

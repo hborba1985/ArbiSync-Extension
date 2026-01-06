@@ -162,27 +162,44 @@
     }
 
     const getQtyInput = (mode = 'open') => {
-      const selectors = mode === 'close'
+      const scopeSelectors = mode === 'close'
         ? [
-            '#mexc_contract_v_close_position input[placeholder*="Quantidade"]',
-            '#mexc_contract_v_close_position input[placeholder*="Qty"]',
-            '#mexc_contract_v_close_position input[type="text"]',
-            '#mexc_contract_v_close_position input[type="number"]'
+            '#mexc_contract_v_close_position',
+            '#mexc_contract_v_close_position_info_login',
+            '[data-testid*="close"]'
           ]
         : [
-            '#mexc_contract_v_open_position > div > div.component_inputWrapper__LP4Dm > div.component_numberInput__PF7Vf > div > div.InputNumberHandle_inputOuterWrapper__8w_l1 > div > div > input',
-            '#mexc_contract_v_open_position input[placeholder*="Quantidade"]',
-            '#mexc_contract_v_open_position input[placeholder*="Qty"]',
-            '#mexc_contract_v_open_position input[type="text"]',
-            '#mexc_contract_v_open_position input[type="number"]'
+            '#mexc_contract_v_open_position',
+            '#mexc_contract_v_open_position_info_login',
+            '[data-testid*="open"]'
           ];
-      for (const selector of selectors) {
+      for (const scopeSelector of scopeSelectors) {
+        const scope = document.querySelector(scopeSelector);
+        if (!scope) continue;
+        const input =
+          scope.querySelector('input[placeholder*="Quantidade"]') ||
+          scope.querySelector('input[placeholder*="Qty"]') ||
+          scope.querySelector('input[type="text"]') ||
+          scope.querySelector('input[type="number"]');
+        if (input) return input;
+      }
+      const fallbackSelectors = [
+        '#mexc_contract_v_open_position input[placeholder*="Quantidade"]',
+        '#mexc_contract_v_open_position input[placeholder*="Qty"]',
+        '#mexc_contract_v_open_position input[type="text"]',
+        '#mexc_contract_v_open_position input[type="number"]',
+        '#mexc_contract_v_close_position input[placeholder*="Quantidade"]',
+        '#mexc_contract_v_close_position input[placeholder*="Qty"]',
+        '#mexc_contract_v_close_position input[type="text"]',
+        '#mexc_contract_v_close_position input[type="number"]',
+        'input[placeholder*="Quantidade"]',
+        'input[placeholder*="Qty"]'
+      ];
+      for (const selector of fallbackSelectors) {
         const input = document.querySelector(selector);
         if (input) return input;
       }
-      return document.querySelector(
-        'input[placeholder*="Quantidade"], input[placeholder*="Qty"]'
-      );
+      return null;
     };
     const findSellButton = () =>
       document.querySelector(

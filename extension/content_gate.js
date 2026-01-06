@@ -558,13 +558,20 @@ console.log('🧩 content_gate.js carregado');
           new RegExp(`([\\d.,]+)\\s*${assetHint}\\b`, 'i')
         );
         if (assetMatch) {
-          matched = { text, match: assetMatch };
+          matched = { text, qty: assetMatch[1], asset: assetHint };
+          break;
+        }
+        const reversedMatch = text.match(
+          new RegExp(`${assetHint}\\b[^\\d]*([\\d.,]+)`, 'i')
+        );
+        if (reversedMatch) {
+          matched = { text, qty: reversedMatch[1], asset: assetHint };
           break;
         }
       }
       const genericMatch = text.match(/([\d.,]+)\s*([A-Za-z0-9-]+)/);
       if (genericMatch) {
-        matched = { text, match: genericMatch };
+        matched = { text, qty: genericMatch[1], asset: genericMatch[2] };
         break;
       }
     }
@@ -574,8 +581,8 @@ console.log('🧩 content_gate.js carregado');
       exposureStatus.textContent = exposureStatus.dataset.base;
     }
     if (!matched) return null;
-    const qty = parseLocaleNumber(matched.match[1]);
-    const asset = matched.match[2];
+    const qty = parseLocaleNumber(matched.qty);
+    const asset = matched.asset;
     if (exposureStatus) {
       exposureStatus.dataset.base =
         `EXPOSIÇÃO: raw="${rawText}" parsedQty="${qty ?? 'n/d'}" asset="${asset ?? 'n/d'}"`;

@@ -595,9 +595,10 @@ console.log('🧩 content_gate.js carregado');
 
   async function persistExposureSnapshot(exchange, asset, qty, avgPrice) {
     if (!asset || !Number.isFinite(qty)) return;
+    const normalizedAsset = asset.toUpperCase();
     const current = (await safeStorageGet('arbsync_exposure')) || {};
     const exchangeData = current[exchange] || {};
-    exchangeData[asset] = {
+    exchangeData[normalizedAsset] = {
       qty,
       avgPrice: Number.isFinite(avgPrice) ? avgPrice : null,
       updatedAt: Date.now()
@@ -713,20 +714,21 @@ console.log('🧩 content_gate.js carregado');
       let mexcQty = Number(mexc[assetKey]?.qty) || 0;
       let gateAvg = Number(gate[assetKey]?.avgPrice);
       const mexcAvg = Number(mexc[assetKey]?.avgPrice);
-      if (gateQty === 0 && mexcQty === 0) {
+      if (gateQty === 0) {
         const fallback = extractGateExposure();
         if (fallback) {
-          exposureState.asset = fallback.asset;
+          const normalizedAsset = fallback.asset.toUpperCase();
+          exposureState.asset = normalizedAsset;
           updateActiveAssetLabel();
           const trades = extractGateTrades();
           const avgPrice = computeGateAveragePrice(
-            fallback.asset,
+            normalizedAsset,
             fallback.qty,
             trades
           );
           gateQty = fallback.qty;
           gateAvg = Number.isFinite(avgPrice) ? avgPrice : gateAvg;
-          persistExposureSnapshot(EXCHANGE, fallback.asset, fallback.qty, avgPrice);
+          persistExposureSnapshot(EXCHANGE, normalizedAsset, fallback.qty, avgPrice);
         }
       }
       const perAsset = Math.abs(gateQty) + Math.abs(mexcQty);
@@ -764,15 +766,16 @@ console.log('🧩 content_gate.js carregado');
     const poll = () => {
       const exposure = extractGateExposure();
       if (!exposure) return;
-      exposureState.asset = exposure.asset;
+      const normalizedAsset = exposure.asset.toUpperCase();
+      exposureState.asset = normalizedAsset;
       updateActiveAssetLabel();
       const trades = extractGateTrades();
       const avgPrice = computeGateAveragePrice(
-        exposure.asset,
+        normalizedAsset,
         exposure.qty,
         trades
       );
-      persistExposureSnapshot(EXCHANGE, exposure.asset, exposure.qty, avgPrice)
+      persistExposureSnapshot(EXCHANGE, normalizedAsset, exposure.qty, avgPrice)
         .then(() => updateExposurePanel(latestSettings));
     };
     poll();

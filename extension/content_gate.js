@@ -635,11 +635,15 @@ console.log('🧩 content_gate.js carregado');
     if (!Number.isFinite(exposureQty) || exposureQty <= 0) return null;
     let remaining = exposureQty;
     let cost = 0;
+    let filled = 0;
     for (const trade of trades) {
       if (!trade || trade.asset !== asset) continue;
       if (!Number.isFinite(trade.qty) || !Number.isFinite(trade.price)) continue;
-      const isBuy = trade.side.toLowerCase().includes('compra');
-      const isSell = trade.side.toLowerCase().includes('venda');
+      const side = trade.side.toLowerCase();
+      const isBuy =
+        side.includes('compra') || side.includes('buy') || side.includes('long');
+      const isSell =
+        side.includes('venda') || side.includes('sell') || side.includes('short');
       if (isSell) {
         remaining += trade.qty;
         continue;
@@ -647,11 +651,12 @@ console.log('🧩 content_gate.js carregado');
       if (!isBuy) continue;
       const used = Math.min(trade.qty, remaining);
       cost += used * trade.price;
+      filled += used;
       remaining -= used;
       if (remaining <= 0) break;
     }
-    if (remaining > 0 || exposureQty <= 0) return null;
-    return cost / exposureQty;
+    if (filled <= 0) return null;
+    return cost / filled;
   }
 
   async function persistExposureSnapshot(exchange, asset, qty, avgPrice) {

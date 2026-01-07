@@ -613,6 +613,40 @@ console.log('🧩 content_mexc.js carregado');
 
   function updateExposurePanel(settings) {
     const baseAsset = exposureState.asset || getAssetFromPair(latestPairs.mexc);
+    const updateLimitStatus = (gateQty, mexcQty) => {
+      const status = document.getElementById('limitStatus');
+      if (!status) return;
+      const perExchangeLimit = Number(settings.exposurePerExchange);
+      const perAssetLimit = Number(settings.exposurePerAsset);
+      const globalLimit = Number(settings.exposureGlobal);
+      const total = Math.abs(Number(gateQty) || 0) + Math.abs(Number(mexcQty) || 0);
+      const reasons = [];
+      if (
+        Number.isFinite(perExchangeLimit) &&
+        perExchangeLimit > 0 &&
+        Math.abs(Number(mexcQty) || 0) > perExchangeLimit
+      ) {
+        reasons.push('EXCHANGE');
+      }
+      if (
+        Number.isFinite(perAssetLimit) &&
+        perAssetLimit > 0 &&
+        total > perAssetLimit
+      ) {
+        reasons.push('ATIVO');
+      }
+      if (
+        Number.isFinite(globalLimit) &&
+        globalLimit > 0 &&
+        total > globalLimit
+      ) {
+        reasons.push('GLOBAL');
+      }
+      status.textContent =
+        reasons.length > 0
+          ? `LIMITES: ${reasons.join(', ')} atingido(s)`
+          : 'LIMITES: OK';
+    };
     const renderWith = (
       gateQty,
       mexcQty,
@@ -673,6 +707,7 @@ console.log('🧩 content_mexc.js carregado');
           ? (mexcAvg - gateAvg) * matchedQty
           : null;
       setPnl(pnl);
+      updateLimitStatus(gateQty, mexcQty);
     };
 
     if (!baseAsset) {

@@ -616,14 +616,28 @@ console.log('🧩 content_gate.js carregado');
 
   let gateHistoryToggleState = null;
   function refreshGateTradeHistory() {
-    const checkbox = document.querySelector('#mantine-7tgjuotkn');
-    if (!checkbox) return;
+    const checkboxInput = document.querySelector('#mantine-7tgjuotkn');
+    const checkboxRoot = document.querySelector(
+      '#multiCurrencyMarginModeSpotStep3 > div.flex.gap-4.items-center.mr-0.h-full.cursor-pointer > div'
+    );
+    const isChecked = () => {
+      if (checkboxInput) return checkboxInput.checked;
+      if (!checkboxRoot) return null;
+      const dataChecked = checkboxRoot.getAttribute('data-checked');
+      if (dataChecked === 'true') return true;
+      if (dataChecked === 'false') return false;
+      return checkboxRoot.dataset.checked === 'true';
+    };
+    const current = isChecked();
+    if (current === null) return;
     if (gateHistoryToggleState === null) {
-      gateHistoryToggleState = checkbox.checked;
+      gateHistoryToggleState = current;
     }
     gateHistoryToggleState = !gateHistoryToggleState;
-    if (checkbox.checked !== gateHistoryToggleState) {
-      checkbox.click();
+    const target = checkboxInput || checkboxRoot;
+    if (!target) return;
+    if (current !== gateHistoryToggleState) {
+      target.click();
     }
   }
 
@@ -731,6 +745,40 @@ console.log('🧩 content_gate.js carregado');
 
   function updateExposurePanel(settings) {
     const baseAsset = exposureState.asset || getAssetFromPair(latestPairs.gate);
+    const updateLimitStatus = (gateQty, mexcQty) => {
+      const status = document.getElementById('limitStatus');
+      if (!status) return;
+      const perExchangeLimit = Number(settings.exposurePerExchange);
+      const perAssetLimit = Number(settings.exposurePerAsset);
+      const globalLimit = Number(settings.exposureGlobal);
+      const total = Math.abs(Number(gateQty) || 0) + Math.abs(Number(mexcQty) || 0);
+      const reasons = [];
+      if (
+        Number.isFinite(perExchangeLimit) &&
+        perExchangeLimit > 0 &&
+        Math.abs(Number(gateQty) || 0) > perExchangeLimit
+      ) {
+        reasons.push('EXCHANGE');
+      }
+      if (
+        Number.isFinite(perAssetLimit) &&
+        perAssetLimit > 0 &&
+        total > perAssetLimit
+      ) {
+        reasons.push('ATIVO');
+      }
+      if (
+        Number.isFinite(globalLimit) &&
+        globalLimit > 0 &&
+        total > globalLimit
+      ) {
+        reasons.push('GLOBAL');
+      }
+      status.textContent =
+        reasons.length > 0
+          ? `LIMITES: ${reasons.join(', ')} atingido(s)`
+          : 'LIMITES: OK';
+    };
     const renderWith = (
       gateQty,
       mexcQty,
@@ -791,6 +839,7 @@ console.log('🧩 content_gate.js carregado');
           ? (mexcAvg - gateAvg) * matchedQty
           : null;
       setPnl(pnl);
+      updateLimitStatus(gateQty, mexcQty);
     };
 
     if (!baseAsset) {
@@ -1234,8 +1283,8 @@ console.log('🧩 content_gate.js carregado');
           globalLimit <= 0 ||
           projectedGlobal <= globalLimit;
         const exposureOk = withinPerExchange && withinPerAsset && withinGlobal;
-        const closePositionQty = Math.min(currentGateQty, currentMexcQty);
-        const hasCloseExposure = closePositionQty > 0;
+        const closePositionQty = currentMexcQty;
+        const hasCloseExposure = currentGateQty > 0;
         const shouldAutoOpen =
           openModeEnabled &&
           openEligible &&

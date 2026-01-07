@@ -229,17 +229,23 @@
         ['Abrir Short', 'Short', 'Abrir'],
         '#mexc_contract_v_open_position_info_login'
       );
-    const findCloseButton = () =>
-      document.querySelector(
-        '#mexc-web-handle-content-wrapper-v > div:nth-child(2) > div > div > div.component_inputWrapper__LP4Dm > div:nth-child(3) > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_longBtn__eazYU.component_withColor__LqLhs'
-      ) ||
-      document.querySelector(
-        'button[data-testid="contract-trade-close-short-btn"]'
-      ) ||
-      findButtonByText(
-        ['Fechar Short', 'Fechar Long', 'Fechar'],
-        '#mexc_contract_v_open_position_info_login'
-      );
+    const findCloseButton = () => {
+      const candidates = [
+        document.querySelector(
+          '#mexc-web-handle-content-wrapper-v > div:nth-child(2) > div > div > div.component_inputWrapper__LP4Dm > div:nth-child(3) > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_longBtn__eazYU.component_withColor__LqLhs'
+        ),
+        ...Array.from(
+          document.querySelectorAll(
+            'button[data-testid="contract-trade-close-short-btn"]'
+          )
+        ),
+        findButtonByText(
+          ['Fechar Short', 'Fechar Long', 'Fechar'],
+          '#mexc_contract_v_open_position_info_login'
+        )
+      ].filter(Boolean);
+      return candidates.find((btn) => btn.offsetParent !== null) || candidates[0];
+    };
 
     const ensureCloseByQuantity = () => {
       const closeButton = findCloseButton();
@@ -277,6 +283,7 @@
     const setContracts = (mode) => {
       const qtyInput = mode === 'close' ? findCloseQtyInput() : getQtyInput(mode);
       if (!qtyInput) return null;
+      if (mode === 'close' && qtyInput.offsetParent === null) return null;
       setNativeValue(qtyInput, String(contracts));
       dispatchInputEvents(qtyInput);
       const parseQty = (value) => {
@@ -301,7 +308,8 @@
             mode,
             contracts,
             inputValue: qtyInput.value,
-            parsedInput
+            parsedInput,
+            inputVisible: qtyInput.offsetParent !== null
           }
         },
         '*'
@@ -431,7 +439,11 @@
   }
 
   function findMexcTab(labels) {
-    const tabs = Array.from(document.querySelectorAll('[role="tab"], button'));
+    const tabs = Array.from(
+      document.querySelectorAll(
+        '[data-testid="contract-trade-order-form-tab-open"], [data-testid="contract-trade-order-form-tab-close"], [role="tab"], button'
+      )
+    );
     return tabs.find((tab) => {
       if (!isTabButton(tab)) return false;
       return labels.some((label) => tab.textContent?.trim().includes(label));
@@ -442,7 +454,12 @@
     const labels = tab === 'close'
       ? ['Fechar', 'Close']
       : ['Abrir', 'Open'];
-    const button = findMexcTab(labels);
+    const button =
+      document.querySelector(
+        tab === 'close'
+          ? '[data-testid="contract-trade-order-form-tab-close"]'
+          : '[data-testid="contract-trade-order-form-tab-open"]'
+      ) || findMexcTab(labels);
     if (button) {
       button.click();
       await waitForMexcTab(button);

@@ -148,7 +148,7 @@
         sendAlert('Não encontrei o campo Quantia na Gate.');
         return;
       }
-      setNativeValue(refreshedQtyInput, String(volume));
+      setNativeValue(refreshedQtyInput, formatGateQuantity(volume));
       dispatchInputEvents(refreshedQtyInput);
       await delay(submitDelay);
       actionButton.click();
@@ -273,6 +273,16 @@
     } else {
       element.value = value;
     }
+  }
+
+  function formatGateQuantity(value) {
+    if (!Number.isFinite(value)) return '';
+    return value
+      .toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8
+      })
+      .replace(/\./g, '');
   }
 
   function dispatchInputEvents(element) {

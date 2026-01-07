@@ -956,7 +956,7 @@ console.log('🧩 content_mexc.js carregado');
     const status = document.getElementById('executionDebug');
     if (!status) return;
     const payload = event.data.payload || {};
-    status.textContent = `EXEC: ${payload.exchange || '--'} ${payload.mode || '--'} qty="${payload.contracts ?? '--'}" input="${payload.inputValue ?? '--'}"`;
+    status.textContent = `EXEC: ${payload.exchange || '--'} ${payload.mode || '--'} qty="${payload.contracts ?? '--'}" input="${payload.inputValue ?? '--'}" parsed="${payload.parsedInput ?? '--'}"`;
   });
 
   window.addEventListener('message', (event) => {

@@ -242,7 +242,9 @@
       );
 
     const ensureCloseByQuantity = () => {
-      const scope = document.querySelector('#mexc_contract_v_close_position')
+      const closeButton = findCloseButton();
+      const scope = closeButton?.closest('[data-testid="contract-trade-order-form"]')
+        || document.querySelector('#mexc_contract_v_close_position')
         || document.querySelector('#mexc-web-handle-content-wrapper-v');
       if (!scope) return;
       const percentButtons = Array.from(
@@ -257,6 +259,10 @@
           el.click();
         }
       });
+      const zeroPercent = Array.from(
+        scope.querySelectorAll('button, span, div')
+      ).find((el) => el.textContent?.trim() === '0%');
+      zeroPercent?.click();
       const closeAllToggle = Array.from(
         scope.querySelectorAll('input[type="checkbox"]')
       ).find((input) => {
@@ -273,6 +279,20 @@
       if (!qtyInput) return null;
       setNativeValue(qtyInput, String(contracts));
       dispatchInputEvents(qtyInput);
+      const parseQty = (value) => {
+        if (value == null) return null;
+        const cleaned = String(value).replace(/\s+/g, '').replace(',', '.');
+        const parsed = Number(cleaned.replace(/[^\d.-]/g, ''));
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+      const parsedInput = parseQty(qtyInput.value);
+      if (mode === 'close' && Number.isFinite(parsedInput)) {
+        const expected = Number(contracts);
+        if (Number.isFinite(expected) && Math.abs(parsedInput - expected) > 0.0001) {
+          sendAlert(`Quantidade divergente na MEXC (input="${qtyInput.value}"). Abortando.`);
+          return null;
+        }
+      }
       window.postMessage(
         {
           type: 'ARBSYNC_EXECUTION_DEBUG',
@@ -280,7 +300,8 @@
             exchange: EXCHANGE,
             mode,
             contracts,
-            inputValue: qtyInput.value
+            inputValue: qtyInput.value,
+            parsedInput
           }
         },
         '*'

@@ -224,6 +224,7 @@ console.log('🧩 content_mexc.js carregado');
     if (allowPartial) {
       allowPartial.addEventListener('change', () => {
         allowPartial.dataset.userEdited = 'true';
+        allowPartial.dataset.userEditedAt = String(Date.now());
         scheduleSettingsUpdate();
       });
     }
@@ -231,12 +232,14 @@ console.log('🧩 content_mexc.js carregado');
     if (liveExecution) {
       liveExecution.addEventListener('change', () => {
         liveExecution.dataset.userEdited = 'true';
+        liveExecution.dataset.userEditedAt = String(Date.now());
         scheduleSettingsUpdate();
       });
     }
     if (syncExecutionEnabled) {
       syncExecutionEnabled.addEventListener('change', () => {
         syncExecutionEnabled.dataset.userEdited = 'true';
+        syncExecutionEnabled.dataset.userEditedAt = String(Date.now());
         scheduleSettingsUpdate();
       });
     }
@@ -246,6 +249,7 @@ console.log('🧩 content_mexc.js carregado');
       if (!el) return;
       el.addEventListener('change', () => {
         el.dataset.userEdited = 'true';
+        el.dataset.userEditedAt = String(Date.now());
         scheduleSettingsUpdate();
       });
     });
@@ -1126,27 +1130,30 @@ console.log('🧩 content_mexc.js carregado');
       }
       latestPairs.gate = data.pairGate || latestPairs.gate;
       latestPairs.mexc = data.pairMexc || latestPairs.mexc;
-      const allowPartialInput = document.getElementById('allowPartialExecution');
-      if (allowPartialInput) {
-        allowPartialInput.checked = !!settings.allowPartialExecution;
-      }
-      const liveExecution = document.getElementById('enableLiveExecution');
-      if (liveExecution) {
-        liveExecution.checked = !!settings.enableLiveExecution;
-      }
-      const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
-      if (syncExecutionEnabled) {
-        syncExecutionEnabled.checked = !!settings.syncTestExecution;
-      }
+      const applyCheckbox = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const desired = !!value;
+        if (el.dataset.userEdited === 'true') {
+          const editedAt = Number(el.dataset.userEditedAt || 0);
+          if (el.checked === desired) {
+            el.dataset.userEdited = '';
+            el.dataset.userEditedAt = '';
+          } else if (Date.now() - editedAt < 1500) {
+            return;
+          } else {
+            el.dataset.userEdited = '';
+            el.dataset.userEditedAt = '';
+          }
+        }
+        el.checked = desired;
+      };
+      applyCheckbox('allowPartialExecution', settings.allowPartialExecution);
+      applyCheckbox('enableLiveExecution', settings.enableLiveExecution);
+      applyCheckbox('syncExecutionEnabled', settings.syncTestExecution);
       if (settings.executionModes) {
-        const openEnabled = document.getElementById('openEnabled');
-        const closeEnabled = document.getElementById('closeEnabled');
-        if (openEnabled) {
-          openEnabled.checked = !!settings.executionModes.openEnabled;
-        }
-        if (closeEnabled) {
-          closeEnabled.checked = !!settings.executionModes.closeEnabled;
-        }
+        applyCheckbox('openEnabled', settings.executionModes.openEnabled);
+        applyCheckbox('closeEnabled', settings.executionModes.closeEnabled);
       }
 
       updatePositionPanel({

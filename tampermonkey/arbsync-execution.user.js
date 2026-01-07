@@ -211,12 +211,42 @@
       );
     const findCloseButton = () =>
       document.querySelector(
+        '#mexc-web-handle-content-wrapper-v > div:nth-child(2) > div > div > div.component_inputWrapper__LP4Dm > div:nth-child(3) > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_longBtn__eazYU.component_withColor__LqLhs'
+      ) ||
+      document.querySelector(
         'button[data-testid="contract-trade-close-short-btn"]'
       ) ||
       findButtonByText(
         ['Fechar Short', 'Fechar Long', 'Fechar'],
         '#mexc_contract_v_open_position_info_login'
       );
+
+    const ensureCloseByQuantity = () => {
+      const scope = document.querySelector('#mexc_contract_v_close_position')
+        || document.querySelector('#mexc-web-handle-content-wrapper-v');
+      if (!scope) return;
+      const percentButtons = Array.from(
+        scope.querySelectorAll('button, span, div')
+      ).filter((el) =>
+        ['%', 'Porcentagem', 'Percent', '100%'].some((label) =>
+          el.textContent?.trim().includes(label)
+        )
+      );
+      percentButtons.forEach((el) => {
+        if (el.getAttribute('aria-pressed') === 'true') {
+          el.click();
+        }
+      });
+      const closeAllToggle = Array.from(
+        scope.querySelectorAll('input[type="checkbox"]')
+      ).find((input) => {
+        const label = input.closest('label')?.textContent || '';
+        return /fechar tudo|close all|all/i.test(label);
+      });
+      if (closeAllToggle?.checked) {
+        closeAllToggle.click();
+      }
+    };
 
     const setContracts = (mode) => {
       const qtyInput = getQtyInput(mode);
@@ -246,6 +276,7 @@
     }
     if (context.modes?.closeEnabled) {
       await activateMexcTab('close');
+      ensureCloseByQuantity();
       if (!setContracts('close')) {
         sendAlert('Não encontrei o campo Quantidade na aba Fechar da MEXC.');
         return;

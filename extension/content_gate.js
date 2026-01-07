@@ -16,7 +16,12 @@ console.log('🧩 content_gate.js carregado');
   };
   let currentGroup = sessionStorage.getItem(GROUP_STORAGE_KEY) || '';
   const latestPairs = { gate: '', mexc: '' };
-  const exposureState = { exchange: EXCHANGE, asset: null, gateQty: null };
+  const exposureState = {
+    exchange: EXCHANGE,
+    asset: null,
+    gateQty: null,
+    mexcQty: null
+  };
   let latestSettings = {};
 
   function safeStorageGet(key) {
@@ -605,6 +610,13 @@ console.log('🧩 content_gate.js carregado');
     return { qty, asset };
   }
 
+  function refreshGateTradeHistory() {
+    const checkbox = document.querySelector('#mantine-7tgjuotkn');
+    if (!checkbox) return;
+    checkbox.click();
+    setTimeout(() => checkbox.click(), 150);
+  }
+
   function extractGateTrades() {
     const rows = Array.from(
       document.querySelectorAll(
@@ -743,6 +755,11 @@ console.log('🧩 content_gate.js carregado');
         if (!el) return;
         el.textContent = formatSpread(value);
       };
+      const setPnl = (value) => {
+        const el = document.getElementById('exposurePnl');
+        if (!el) return;
+        el.textContent = Number.isFinite(value) ? value.toFixed(6) : '--';
+      };
 
       setQty('exposureGateQty', gateQty);
       setQty('exposureMexcQty', mexcQty);
@@ -753,6 +770,17 @@ console.log('🧩 content_gate.js carregado');
           ? ((mexcAvg - gateAvg) / gateAvg) * 100
           : null;
       setTotalSpread(totalSpread);
+      const matchedQty = Math.min(
+        Math.abs(Number(gateQty) || 0),
+        Math.abs(Number(mexcQty) || 0)
+      );
+      const pnl =
+        Number.isFinite(gateAvg) &&
+        Number.isFinite(mexcAvg) &&
+        Number.isFinite(matchedQty)
+          ? (mexcAvg - gateAvg) * matchedQty
+          : null;
+      setPnl(pnl);
     };
 
     if (!baseAsset) {
@@ -795,6 +823,7 @@ console.log('🧩 content_gate.js carregado');
           `${base} storage[${assetKey}] gateQty="${storedGateQty}" mexcQty="${mexcQty}"${fallbackNote}`;
       }
       exposureState.gateQty = gateQty;
+      exposureState.mexcQty = mexcQty;
       renderWith(gateQty, mexcQty, gateAvg, mexcAvg);
     });
   }
@@ -937,9 +966,13 @@ console.log('🧩 content_gate.js carregado');
   }
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', ensureOverlay);
+    document.addEventListener('DOMContentLoaded', () => {
+      ensureOverlay();
+      refreshGateTradeHistory();
+    });
   } else {
     ensureOverlay();
+    refreshGateTradeHistory();
   }
 
   window.addEventListener('message', (event) => {
@@ -974,6 +1007,7 @@ console.log('🧩 content_gate.js carregado');
         },
         '*'
       );
+      refreshGateTradeHistory();
       return;
     }
 
@@ -1168,14 +1202,40 @@ console.log('🧩 content_gate.js carregado');
           now - lastAutoExecution.open >= cooldownMs;
         const closeCooldownOk =
           now - lastAutoExecution.close >= cooldownMs;
+        const currentGateQty = Math.abs(Number(exposureState.gateQty) || 0);
+        const currentMexcQty = Math.abs(Number(exposureState.mexcQty) || 0);
+        const projectedGateQty = currentGateQty + Number(settings.spotVolume || 0);
+        const projectedMexcQty = currentMexcQty + Number(settings.spotVolume || 0);
+        const projectedPerAsset = projectedGateQty + projectedMexcQty;
+        const projectedGlobal = projectedPerAsset;
+        const perExchangeLimit = Number(settings.exposurePerExchange);
+        const perAssetLimit = Number(settings.exposurePerAsset);
+        const globalLimit = Number(settings.exposureGlobal);
+        const withinPerExchange =
+          !Number.isFinite(perExchangeLimit) ||
+          perExchangeLimit <= 0 ||
+          projectedGateQty <= perExchangeLimit;
+        const withinPerAsset =
+          !Number.isFinite(perAssetLimit) ||
+          perAssetLimit <= 0 ||
+          projectedPerAsset <= perAssetLimit;
+        const withinGlobal =
+          !Number.isFinite(globalLimit) ||
+          globalLimit <= 0 ||
+          projectedGlobal <= globalLimit;
+        const exposureOk = withinPerExchange && withinPerAsset && withinGlobal;
+        const closePositionQty = Math.min(currentGateQty, currentMexcQty);
+        const hasCloseExposure = closePositionQty > 0;
         const shouldAutoOpen =
           openModeEnabled &&
           openEligible &&
           openSpreadOk &&
           openLiquidityOk &&
-          openCooldownOk;
+          openCooldownOk &&
+          exposureOk;
         const shouldAutoClose =
           closeModeEnabled &&
+          hasCloseExposure &&
           closeEligible &&
           closeSpreadOk &&
           closeLiquidityOk &&
@@ -1191,6 +1251,9 @@ console.log('🧩 content_gate.js carregado');
             gateAvailable < spotVolume
               ? gateAvailable
               : spotVolume;
+          if (shouldAutoClose && gateSpotVolume <= 0) {
+            return;
+          }
           if (
             Number.isFinite(spotVolume) &&
             spotVolume > 0 &&
@@ -1222,9 +1285,12 @@ console.log('🧩 content_gate.js carregado');
             };
             syncExecutionLog(logPayload);
             sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
+            const closeContracts = shouldAutoClose
+              ? Math.min(futuresContracts, closePositionQty)
+              : futuresContracts;
             const payload = {
               spotVolume: gateSpotVolume,
-              futuresContracts,
+              futuresContracts: closeContracts,
               pairGate: data.pairGate || '',
               pairMexc: data.pairMexc || '',
               modes: {
@@ -1245,6 +1311,9 @@ console.log('🧩 content_gate.js carregado');
             });
             if (shouldAutoOpen) lastAutoExecution.open = now;
             if (shouldAutoClose) lastAutoExecution.close = now;
+            if (shouldAutoOpen || shouldAutoClose) {
+              refreshGateTradeHistory();
+            }
           }
         }
       }
@@ -1295,24 +1364,24 @@ console.log('🧩 content_gate.js carregado');
       latestPairs.gate = data.pairGate || latestPairs.gate;
       latestPairs.mexc = data.pairMexc || latestPairs.mexc;
       const allowPartial = document.getElementById('allowPartialExecution');
-      if (allowPartial && allowPartial.dataset.userEdited !== 'true') {
+      if (allowPartial) {
         allowPartial.checked = !!settings.allowPartialExecution;
       }
       const liveExecution = document.getElementById('enableLiveExecution');
-      if (liveExecution && liveExecution.dataset.userEdited !== 'true') {
+      if (liveExecution) {
         liveExecution.checked = !!settings.enableLiveExecution;
       }
       const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
-      if (syncExecutionEnabled && syncExecutionEnabled.dataset.userEdited !== 'true') {
+      if (syncExecutionEnabled) {
         syncExecutionEnabled.checked = !!settings.syncTestExecution;
       }
       if (settings.executionModes) {
         const openEnabled = document.getElementById('openEnabled');
         const closeEnabled = document.getElementById('closeEnabled');
-        if (openEnabled && openEnabled.dataset.userEdited !== 'true') {
+        if (openEnabled) {
           openEnabled.checked = !!settings.executionModes.openEnabled;
         }
-        if (closeEnabled && closeEnabled.dataset.userEdited !== 'true') {
+        if (closeEnabled) {
           closeEnabled.checked = !!settings.executionModes.closeEnabled;
         }
       }

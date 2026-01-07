@@ -643,6 +643,11 @@ console.log('🧩 content_mexc.js carregado');
         if (!el) return;
         el.textContent = formatSpread(value);
       };
+      const setPnl = (value) => {
+        const el = document.getElementById('exposurePnl');
+        if (!el) return;
+        el.textContent = Number.isFinite(value) ? value.toFixed(6) : '--';
+      };
 
       setQty('exposureGateQty', gateQty);
       setQty('exposureMexcQty', mexcQty);
@@ -653,6 +658,17 @@ console.log('🧩 content_mexc.js carregado');
           ? ((mexcAvg - gateAvg) / gateAvg) * 100
           : null;
       setTotalSpread(totalSpread);
+      const matchedQty = Math.min(
+        Math.abs(Number(gateQty) || 0),
+        Math.abs(Number(mexcQty) || 0)
+      );
+      const pnl =
+        Number.isFinite(gateAvg) &&
+        Number.isFinite(mexcAvg) &&
+        Number.isFinite(matchedQty)
+          ? (mexcAvg - gateAvg) * matchedQty
+          : null;
+      setPnl(pnl);
     };
 
     if (!baseAsset) {
@@ -1111,24 +1127,24 @@ console.log('🧩 content_mexc.js carregado');
       latestPairs.gate = data.pairGate || latestPairs.gate;
       latestPairs.mexc = data.pairMexc || latestPairs.mexc;
       const allowPartialInput = document.getElementById('allowPartialExecution');
-      if (allowPartialInput && allowPartialInput.dataset.userEdited !== 'true') {
+      if (allowPartialInput) {
         allowPartialInput.checked = !!settings.allowPartialExecution;
       }
       const liveExecution = document.getElementById('enableLiveExecution');
-      if (liveExecution && liveExecution.dataset.userEdited !== 'true') {
+      if (liveExecution) {
         liveExecution.checked = !!settings.enableLiveExecution;
       }
       const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
-      if (syncExecutionEnabled && syncExecutionEnabled.dataset.userEdited !== 'true') {
+      if (syncExecutionEnabled) {
         syncExecutionEnabled.checked = !!settings.syncTestExecution;
       }
       if (settings.executionModes) {
         const openEnabled = document.getElementById('openEnabled');
         const closeEnabled = document.getElementById('closeEnabled');
-        if (openEnabled && openEnabled.dataset.userEdited !== 'true') {
+        if (openEnabled) {
           openEnabled.checked = !!settings.executionModes.openEnabled;
         }
-        if (closeEnabled && closeEnabled.dataset.userEdited !== 'true') {
+        if (closeEnabled) {
           closeEnabled.checked = !!settings.executionModes.closeEnabled;
         }
       }

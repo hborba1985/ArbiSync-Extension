@@ -616,6 +616,21 @@ console.log('🧩 content_gate.js carregado');
 
   let gateHistoryToggleState = null;
   function refreshGateTradeHistory() {
+    const oneDayButton = document.querySelector(
+      '#orderPanel > div > div.flex.flex-col.w-full.h-full.relative.box-border.overflow-auto.transition-height.duration-400.ease-linear.text-body-s > div.flex.items-center.my-3.mx-4 > div.flex.gap-2 > div:nth-child(1)'
+    );
+    const sevenDayButton = document.querySelector(
+      '#orderPanel > div > div.flex.flex-col.w-full.h-full.relative.box-border.overflow-auto.transition-height.duration-400.ease-linear.text-body-s > div.flex.items-center.my-3.mx-4 > div.flex.gap-2 > div:nth-child(2)'
+    );
+    if (oneDayButton && sevenDayButton) {
+      if (!gateHistoryToggleState) {
+        gateHistoryToggleState = '1d';
+      }
+      gateHistoryToggleState = gateHistoryToggleState === '1d' ? '7d' : '1d';
+      const target = gateHistoryToggleState === '1d' ? oneDayButton : sevenDayButton;
+      target.click();
+      return;
+    }
     const checkboxInput = document.querySelector('#mantine-7tgjuotkn');
     const checkboxRoot = document.querySelector(
       '#multiCurrencyMarginModeSpotStep3 > div.flex.gap-4.items-center.mr-0.h-full.cursor-pointer > div'
@@ -1052,6 +1067,14 @@ console.log('🧩 content_gate.js carregado');
     if (window.alert) {
       window.alert(message);
     }
+  });
+
+  window.addEventListener('message', (event) => {
+    if (!event?.data || event.data.type !== 'ARBSYNC_EXECUTION_DEBUG') return;
+    const status = document.getElementById('executionDebug');
+    if (!status) return;
+    const payload = event.data.payload || {};
+    status.textContent = `EXEC: ${payload.exchange || '--'} ${payload.mode || '--'} qty="${payload.contracts ?? '--'}" input="${payload.inputValue ?? '--'}"`;
   });
 
   chrome.runtime.onMessage.addListener((msg) => {

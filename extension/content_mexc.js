@@ -952,6 +952,14 @@ console.log('🧩 content_mexc.js carregado');
   });
 
   window.addEventListener('message', (event) => {
+    if (!event?.data || event.data.type !== 'ARBSYNC_EXECUTION_DEBUG') return;
+    const status = document.getElementById('executionDebug');
+    if (!status) return;
+    const payload = event.data.payload || {};
+    status.textContent = `EXEC: ${payload.exchange || '--'} ${payload.mode || '--'} qty="${payload.contracts ?? '--'}" input="${payload.inputValue ?? '--'}"`;
+  });
+
+  window.addEventListener('message', (event) => {
     if (!event?.data || event.data.type !== 'ARBSYNC_ALERT') return;
     const testStatus = document.getElementById('testStatus');
     const message = event.data.message || 'Falha na execução.';

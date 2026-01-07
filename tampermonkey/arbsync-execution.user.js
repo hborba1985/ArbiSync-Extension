@@ -273,6 +273,18 @@
       if (!qtyInput) return null;
       setNativeValue(qtyInput, String(contracts));
       dispatchInputEvents(qtyInput);
+      window.postMessage(
+        {
+          type: 'ARBSYNC_EXECUTION_DEBUG',
+          payload: {
+            exchange: EXCHANGE,
+            mode,
+            contracts,
+            inputValue: qtyInput.value
+          }
+        },
+        '*'
+      );
       return qtyInput;
     };
 

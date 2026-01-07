@@ -614,11 +614,17 @@ console.log('🧩 content_gate.js carregado');
     return { qty, asset };
   }
 
+  let gateHistoryToggleState = null;
   function refreshGateTradeHistory() {
     const checkbox = document.querySelector('#mantine-7tgjuotkn');
     if (!checkbox) return;
-    checkbox.click();
-    setTimeout(() => checkbox.click(), 150);
+    if (gateHistoryToggleState === null) {
+      gateHistoryToggleState = checkbox.checked;
+    }
+    gateHistoryToggleState = !gateHistoryToggleState;
+    if (checkbox.checked !== gateHistoryToggleState) {
+      checkbox.click();
+    }
   }
 
   function extractGateTrades() {

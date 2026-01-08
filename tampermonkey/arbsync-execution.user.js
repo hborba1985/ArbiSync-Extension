@@ -300,20 +300,6 @@
           return null;
         }
       }
-      window.postMessage(
-        {
-          type: 'ARBSYNC_EXECUTION_DEBUG',
-          payload: {
-            exchange: EXCHANGE,
-            mode,
-            contracts,
-            inputValue: qtyInput.value,
-            parsedInput,
-            inputVisible: qtyInput.offsetParent !== null
-          }
-        },
-        '*'
-      );
       return qtyInput;
     };
 

@@ -28,6 +28,11 @@ export default {
     testVolume: null,
     enableLiveExecution: false,
     autoExecutionCooldownMs: null,
+    autoCloseProfitPercent: null,
+    autoCloseProfitUsdt: null,
+    autoCloseMinutes: null,
+    limitToTopLiquidity: false,
+    enableAutoRebalance: false,
     syncTestExecution: false,
     executionModes: {
       openEnabled: true,

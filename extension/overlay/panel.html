@@ -44,7 +44,6 @@
 
   <div class="section-title">Exposição atual</div>
   <div class="status" id="limitStatus">LIMITES: --</div>
-  <div class="status" id="executionDebug">EXEC: --</div>
   <div class="exposure-summary">
     <div class="exposure-row">
       <span id="exposureGateQty">GATE: --</span>
@@ -146,6 +145,44 @@
         </label>
       </div>
       <div class="status">SPOT: Vender · FUTUROS: Fechar Short</div>
+    </div>
+  </details>
+
+  <details class="accordion">
+    <summary>Gerenciamento de Posição</summary>
+    <div class="accordion-body">
+      <div class="field checkbox">
+        <label>
+          <input id="limitToTopLiquidity" type="checkbox" />
+          Executar apenas a liquidez do 1º nível (ASK/BID)
+        </label>
+        <div class="hint">
+          <div>- Usa o menor volume disponível entre Gate e MEXC no melhor preço.</div>
+          <div>- Mantém execução equalizada por nível.</div>
+        </div>
+      </div>
+      <div class="field checkbox">
+        <label>
+          <input id="enableAutoRebalance" type="checkbox" />
+          Auto-rebalanceamento spot/futuros
+        </label>
+        <div class="hint">
+          <div>- Executa para equalizar posições mesmo sem spread favorável.</div>
+        </div>
+      </div>
+      <div class="section-divider">Fechamento automático</div>
+      <div class="field">
+        <label for="autoCloseProfitPercent">Por lucro (%)</label>
+        <input id="autoCloseProfitPercent" type="number" step="0.001" placeholder="Ex: 0.2" />
+      </div>
+      <div class="field">
+        <label for="autoCloseProfitUsdt">Por lucro (USDT)</label>
+        <input id="autoCloseProfitUsdt" type="number" step="0.01" placeholder="Ex: 10" />
+      </div>
+      <div class="field">
+        <label for="autoCloseMinutes">Por tempo (minutos)</label>
+        <input id="autoCloseMinutes" type="number" step="1" placeholder="Ex: 30" />
+      </div>
     </div>
   </details>
 

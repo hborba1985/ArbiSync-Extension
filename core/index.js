@@ -28,6 +28,11 @@ state.settings = {
   testVolume: cfg.ORDER_VOLUME,
   enableLiveExecution: false,
   autoExecutionCooldownMs: cfg.AUTO_EXECUTION_COOLDOWN_MS,
+  autoCloseProfitPercent: cfg.AUTO_CLOSE_PROFIT_PERCENT,
+  autoCloseProfitUsdt: cfg.AUTO_CLOSE_PROFIT_USDT,
+  autoCloseMinutes: cfg.AUTO_CLOSE_MINUTES,
+  limitToTopLiquidity: cfg.LIMIT_TO_TOP_LIQUIDITY,
+  enableAutoRebalance: cfg.ENABLE_AUTO_REBALANCE,
   executionModes: {
     openEnabled: true,
     closeEnabled: false

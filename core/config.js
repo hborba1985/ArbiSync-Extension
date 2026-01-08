@@ -7,6 +7,11 @@ export default {
   COOLDOWN_MS: 7000,        // Cooldown entre sinais
   PERSISTENCE_MS: 300,      // Tempo mínimo (ms) acima do spread
   AUTO_EXECUTION_COOLDOWN_MS: 7000,
+  AUTO_CLOSE_PROFIT_PERCENT: null,
+  AUTO_CLOSE_PROFIT_USDT: null,
+  AUTO_CLOSE_MINUTES: null,
+  LIMIT_TO_TOP_LIQUIDITY: false,
+  ENABLE_AUTO_REBALANCE: false,
 
   ORDER_VOLUME: 50,
   MIN_LIQUIDITY_OPEN: 50,

@@ -210,6 +210,9 @@ console.log('🧩 content_mexc.js carregado');
       'exposurePerAsset',
       'exposurePerExchange',
       'exposureGlobal',
+      'autoCloseProfitPercent',
+      'autoCloseProfitUsdt',
+      'autoCloseMinutes',
       'testVolume'
     ];
     inputs.forEach((id) => {
@@ -243,6 +246,22 @@ console.log('🧩 content_mexc.js carregado');
         scheduleSettingsUpdate();
       });
     }
+    const limitToTopLiquidity = document.getElementById('limitToTopLiquidity');
+    if (limitToTopLiquidity) {
+      limitToTopLiquidity.addEventListener('change', () => {
+        limitToTopLiquidity.dataset.userEdited = 'true';
+        limitToTopLiquidity.dataset.userEditedAt = String(Date.now());
+        scheduleSettingsUpdate();
+      });
+    }
+    const enableAutoRebalance = document.getElementById('enableAutoRebalance');
+    if (enableAutoRebalance) {
+      enableAutoRebalance.addEventListener('change', () => {
+        enableAutoRebalance.dataset.userEdited = 'true';
+        enableAutoRebalance.dataset.userEditedAt = String(Date.now());
+        scheduleSettingsUpdate();
+      });
+    }
     const openEnabled = document.getElementById('openEnabled');
     const closeEnabled = document.getElementById('closeEnabled');
     [openEnabled, closeEnabled].forEach((el) => {
@@ -271,6 +290,13 @@ console.log('🧩 content_mexc.js carregado');
       exposurePerAsset: readNumber('exposurePerAsset'),
       exposurePerExchange: readNumber('exposurePerExchange'),
       exposureGlobal: readNumber('exposureGlobal'),
+      autoCloseProfitPercent: readNumber('autoCloseProfitPercent'),
+      autoCloseProfitUsdt: readNumber('autoCloseProfitUsdt'),
+      autoCloseMinutes: readNumber('autoCloseMinutes'),
+      limitToTopLiquidity:
+        document.getElementById('limitToTopLiquidity')?.checked ?? false,
+      enableAutoRebalance:
+        document.getElementById('enableAutoRebalance')?.checked ?? false,
       allowPartialExecution:
         document.getElementById('allowPartialExecution')?.checked ?? false,
       testVolume: readNumber('testVolume'),
@@ -951,13 +977,7 @@ console.log('🧩 content_mexc.js carregado');
     }
   });
 
-  window.addEventListener('message', (event) => {
-    if (!event?.data || event.data.type !== 'ARBSYNC_EXECUTION_DEBUG') return;
-    const status = document.getElementById('executionDebug');
-    if (!status) return;
-    const payload = event.data.payload || {};
-    status.textContent = `EXEC: ${payload.exchange || '--'} ${payload.mode || '--'} qty="${payload.contracts ?? '--'}" input="${payload.inputValue ?? '--'}" parsed="${payload.parsedInput ?? '--'}" visible="${payload.inputVisible ?? '--'}"`;
-  });
+  
 
   window.addEventListener('message', (event) => {
     if (!event?.data || event.data.type !== 'ARBSYNC_ALERT') return;
@@ -1057,7 +1077,15 @@ console.log('🧩 content_mexc.js carregado');
         Number.isFinite(value) ? value.toFixed(4) : '--';
       const formatPrice = (value) =>
         Number.isFinite(value) ? value.toFixed(11) : '--';
-      const setLiquidityStatus = (el, label, leftSize, rightSize, minLiquidity) => {
+      const setLiquidityStatus = (
+        el,
+        label,
+        leftSize,
+        rightSize,
+        minLiquidity,
+        leftPrice,
+        rightPrice
+      ) => {
         if (!el) return;
         el.classList.remove('positive', 'negative');
         if (!Number.isFinite(minLiquidity) || minLiquidity <= 0) {
@@ -1069,9 +1097,19 @@ console.log('🧩 content_mexc.js carregado');
           return;
         }
         const enough = leftSize >= minLiquidity && rightSize >= minLiquidity;
+        const leftUsd =
+          Number.isFinite(leftPrice) && Number.isFinite(leftSize)
+            ? leftPrice * leftSize
+            : null;
+        const rightUsd =
+          Number.isFinite(rightPrice) && Number.isFinite(rightSize)
+            ? rightPrice * rightSize
+            : null;
+        const formatUsd = (value) =>
+          Number.isFinite(value) ? value.toFixed(2) : '--';
         el.textContent = `LIQUIDEZ ${label}: ${enough ? 'OK' : 'INSUFICIENTE'} (${formatLiquidity(
           leftSize
-        )}/${formatLiquidity(rightSize)})`;
+        )}/${formatLiquidity(rightSize)}) | ${formatUsd(leftUsd)}/${formatUsd(rightUsd)} USDT`;
         el.classList.add(enough ? 'positive' : 'negative');
       };
       const gateAskQty =
@@ -1091,14 +1129,18 @@ console.log('🧩 content_mexc.js carregado');
         'ENTRADA',
         gateAskQty,
         mexcBidQty,
-        minLiquidityOpen
+        minLiquidityOpen,
+        gateAskPx,
+        mexcBidPx
       );
       setLiquidityStatus(
         liquidityClose,
         'SAÍDA',
         gateBidQty,
         mexcAskQty,
-        minLiquidityClose
+        minLiquidityClose,
+        gateBidPx,
+        mexcAskPx
       );
       const domFresh = Date.now() - lastDomBookUpdate < 3000;
       if (!domFresh) {
@@ -1165,6 +1207,9 @@ console.log('🧩 content_mexc.js carregado');
       updateInput('exposurePerAsset', settings.exposurePerAsset);
       updateInput('exposurePerExchange', settings.exposurePerExchange);
       updateInput('exposureGlobal', settings.exposureGlobal);
+      updateInput('autoCloseProfitPercent', settings.autoCloseProfitPercent);
+      updateInput('autoCloseProfitUsdt', settings.autoCloseProfitUsdt);
+      updateInput('autoCloseMinutes', settings.autoCloseMinutes);
       updateInput('testVolume', settings.testVolume);
       const testBtn = document.getElementById('testBtn');
       if (testBtn) {
@@ -1194,6 +1239,8 @@ console.log('🧩 content_mexc.js carregado');
       applyCheckbox('allowPartialExecution', settings.allowPartialExecution);
       applyCheckbox('enableLiveExecution', settings.enableLiveExecution);
       applyCheckbox('syncExecutionEnabled', settings.syncTestExecution);
+      applyCheckbox('limitToTopLiquidity', settings.limitToTopLiquidity);
+      applyCheckbox('enableAutoRebalance', settings.enableAutoRebalance);
       if (settings.executionModes) {
         applyCheckbox('openEnabled', settings.executionModes.openEnabled);
         applyCheckbox('closeEnabled', settings.executionModes.closeEnabled);

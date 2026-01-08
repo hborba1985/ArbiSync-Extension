@@ -20,7 +20,9 @@ console.log('🧩 content_gate.js carregado');
     exchange: EXCHANGE,
     asset: null,
     gateQty: null,
-    mexcQty: null
+    mexcQty: null,
+    gateAvg: null,
+    mexcAvg: null
   };
   let latestSettings = {};
 
@@ -218,6 +220,9 @@ console.log('🧩 content_gate.js carregado');
       'exposurePerAsset',
       'exposurePerExchange',
       'exposureGlobal',
+      'autoCloseProfitPercent',
+      'autoCloseProfitUsdt',
+      'autoCloseMinutes',
       'testVolume'
     ];
     inputs.forEach((id) => {
@@ -251,6 +256,22 @@ console.log('🧩 content_gate.js carregado');
         scheduleSettingsUpdate();
       });
     }
+    const limitToTopLiquidity = document.getElementById('limitToTopLiquidity');
+    if (limitToTopLiquidity) {
+      limitToTopLiquidity.addEventListener('change', () => {
+        limitToTopLiquidity.dataset.userEdited = 'true';
+        limitToTopLiquidity.dataset.userEditedAt = String(Date.now());
+        scheduleSettingsUpdate();
+      });
+    }
+    const enableAutoRebalance = document.getElementById('enableAutoRebalance');
+    if (enableAutoRebalance) {
+      enableAutoRebalance.addEventListener('change', () => {
+        enableAutoRebalance.dataset.userEdited = 'true';
+        enableAutoRebalance.dataset.userEditedAt = String(Date.now());
+        scheduleSettingsUpdate();
+      });
+    }
     const openEnabled = document.getElementById('openEnabled');
     const closeEnabled = document.getElementById('closeEnabled');
     [openEnabled, closeEnabled].forEach((el) => {
@@ -279,6 +300,13 @@ console.log('🧩 content_gate.js carregado');
       exposurePerAsset: readNumber('exposurePerAsset'),
       exposurePerExchange: readNumber('exposurePerExchange'),
       exposureGlobal: readNumber('exposureGlobal'),
+      autoCloseProfitPercent: readNumber('autoCloseProfitPercent'),
+      autoCloseProfitUsdt: readNumber('autoCloseProfitUsdt'),
+      autoCloseMinutes: readNumber('autoCloseMinutes'),
+      limitToTopLiquidity:
+        document.getElementById('limitToTopLiquidity')?.checked ?? false,
+      enableAutoRebalance:
+        document.getElementById('enableAutoRebalance')?.checked ?? false,
       allowPartialExecution:
         document.getElementById('allowPartialExecution')?.checked ?? false,
       testVolume: readNumber('testVolume'),
@@ -898,6 +926,8 @@ console.log('🧩 content_gate.js carregado');
       }
       exposureState.gateQty = gateQty;
       exposureState.mexcQty = mexcQty;
+      exposureState.gateAvg = gateAvg;
+      exposureState.mexcAvg = mexcAvg;
       renderWith(gateQty, mexcQty, gateAvg, mexcAvg);
     });
   }
@@ -913,6 +943,9 @@ console.log('🧩 content_gate.js carregado');
     if (!payload) return;
     if (payload.open) {
       executionLog.open = payload.open;
+      if (!executionLog.open.at) {
+        executionLog.open.at = Date.now();
+      }
     }
     if (payload.close) {
       executionLog.close = payload.close;
@@ -1069,13 +1102,7 @@ console.log('🧩 content_gate.js carregado');
     }
   });
 
-  window.addEventListener('message', (event) => {
-    if (!event?.data || event.data.type !== 'ARBSYNC_EXECUTION_DEBUG') return;
-    const status = document.getElementById('executionDebug');
-    if (!status) return;
-    const payload = event.data.payload || {};
-    status.textContent = `EXEC: ${payload.exchange || '--'} ${payload.mode || '--'} qty="${payload.contracts ?? '--'}" input="${payload.inputValue ?? '--'}" parsed="${payload.parsedInput ?? '--'}" visible="${payload.inputVisible ?? '--'}"`;
-  });
+  
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (!msg || !msg.type) return;
@@ -1164,7 +1191,15 @@ console.log('🧩 content_gate.js carregado');
         Number.isFinite(value) ? value.toFixed(4) : '--';
       const formatPrice = (value) =>
         Number.isFinite(value) ? value.toFixed(11) : '--';
-      const setLiquidityStatus = (el, label, leftSize, rightSize, minLiquidity) => {
+      const setLiquidityStatus = (
+        el,
+        label,
+        leftSize,
+        rightSize,
+        minLiquidity,
+        leftPrice,
+        rightPrice
+      ) => {
         if (!el) return;
         el.classList.remove('positive', 'negative');
         if (!Number.isFinite(minLiquidity) || minLiquidity <= 0) {
@@ -1176,9 +1211,19 @@ console.log('🧩 content_gate.js carregado');
           return;
         }
         const enough = leftSize >= minLiquidity && rightSize >= minLiquidity;
+        const leftUsd =
+          Number.isFinite(leftPrice) && Number.isFinite(leftSize)
+            ? leftPrice * leftSize
+            : null;
+        const rightUsd =
+          Number.isFinite(rightPrice) && Number.isFinite(rightSize)
+            ? rightPrice * rightSize
+            : null;
+        const formatUsd = (value) =>
+          Number.isFinite(value) ? value.toFixed(2) : '--';
         el.textContent = `LIQUIDEZ ${label}: ${enough ? 'OK' : 'INSUFICIENTE'} (${formatLiquidity(
           leftSize
-        )}/${formatLiquidity(rightSize)})`;
+        )}/${formatLiquidity(rightSize)}) | ${formatUsd(leftUsd)}/${formatUsd(rightUsd)} USDT`;
         el.classList.add(enough ? 'positive' : 'negative');
       };
       const gateAskQty =
@@ -1198,14 +1243,18 @@ console.log('🧩 content_gate.js carregado');
         'ENTRADA',
         gateAskQty,
         mexcBidQty,
-        minLiquidityOpen
+        minLiquidityOpen,
+        gateAskPx,
+        mexcBidPx
       );
       setLiquidityStatus(
         liquidityClose,
         'SAÍDA',
         gateBidQty,
         mexcAskQty,
-        minLiquidityClose
+        minLiquidityClose,
+        gateBidPx,
+        mexcAskPx
       );
       const domFresh = Date.now() - lastDomBookUpdate < 3000;
       if (!domFresh) {
@@ -1308,6 +1357,45 @@ console.log('🧩 content_gate.js carregado');
         const exposureOk = withinPerExchange && withinPerAsset && withinGlobal;
         const closePositionQty = currentMexcQty;
         const hasCloseExposure = currentGateQty > 0;
+        const profitPercentTarget = Number(settings.autoCloseProfitPercent);
+        const profitUsdtTarget = Number(settings.autoCloseProfitUsdt);
+        const timeTargetMinutes = Number(settings.autoCloseMinutes);
+        const currentGateAvg = Number(exposureState.gateAvg);
+        const currentMexcAvg = Number(exposureState.mexcAvg);
+        const closeMatchedQty = Math.min(currentGateQty, currentMexcQty);
+        const closeSpreadPercent =
+          Number.isFinite(currentGateAvg) && Number.isFinite(currentMexcAvg) && currentGateAvg > 0
+            ? ((currentMexcAvg - currentGateAvg) / currentGateAvg) * 100
+            : null;
+        const closePnl =
+          Number.isFinite(currentGateAvg) &&
+          Number.isFinite(currentMexcAvg) &&
+          Number.isFinite(closeMatchedQty)
+            ? (currentMexcAvg - currentGateAvg) * closeMatchedQty
+            : null;
+        const profitPercentOk =
+          Number.isFinite(profitPercentTarget) &&
+          profitPercentTarget > 0 &&
+          Number.isFinite(closeSpreadPercent) &&
+          closeSpreadPercent >= profitPercentTarget;
+        const profitUsdtOk =
+          Number.isFinite(profitUsdtTarget) &&
+          profitUsdtTarget > 0 &&
+          Number.isFinite(closePnl) &&
+          closePnl >= profitUsdtTarget;
+        const openAt = executionLog.open?.at;
+        const timeOk =
+          Number.isFinite(timeTargetMinutes) &&
+          timeTargetMinutes > 0 &&
+          Number.isFinite(openAt) &&
+          now - openAt >= timeTargetMinutes * 60 * 1000;
+        const closeForced = profitPercentOk || profitUsdtOk || timeOk;
+        const rebalanceEnabled = !!settings.enableAutoRebalance;
+        const rebalanceNeeded =
+          rebalanceEnabled &&
+          Number.isFinite(currentGateQty) &&
+          Number.isFinite(currentMexcQty) &&
+          Math.abs(currentGateQty - currentMexcQty) > 0.0001;
         const shouldAutoOpen =
           openModeEnabled &&
           openEligible &&
@@ -1319,81 +1407,129 @@ console.log('🧩 content_gate.js carregado');
           closeModeEnabled &&
           hasCloseExposure &&
           closeEligible &&
-          closeSpreadOk &&
-          closeLiquidityOk &&
+          (closeForced || rebalanceNeeded || (closeSpreadOk && closeLiquidityOk)) &&
           closeCooldownOk;
 
         if (shouldAutoOpen || shouldAutoClose) {
           const spotVolume = Number(settings.spotVolume);
-          const futuresContracts = spotVolume;
-          const gateAvailable = Number(exposureState.gateQty);
-          const gateSpotVolume =
-            Number.isFinite(gateAvailable) &&
-            gateAvailable > 0 &&
-            gateAvailable < spotVolume
-              ? gateAvailable
-              : spotVolume;
-          if (shouldAutoClose && gateSpotVolume <= 0) {
-            return;
-          }
-          if (
-            Number.isFinite(spotVolume) &&
-            spotVolume > 0 &&
-            futuresContracts > 0
-          ) {
-            const logPayload = {
-              open: shouldAutoOpen
-                ? {
-                    gatePrice: gateAskPx,
-                    mexcPrice: mexcBidPx,
-                    spotVolume: gateSpotVolume,
-                    futuresContracts,
-                    spread: spreadOpen
-                  }
-                : null,
-              close: shouldAutoClose
-                ? {
-                    gatePrice: gateBidPx,
-                    mexcPrice: mexcAskPx,
-                    spotVolume: gateSpotVolume,
-                    futuresContracts,
-                    spread: spreadClose
-                  }
-                : null,
-              snapshot: {
+          const useTopLiquidity = !!settings.limitToTopLiquidity;
+          const openTopVolume = useTopLiquidity
+            ? Math.min(spotVolume, gateAskQty, mexcBidQty)
+            : spotVolume;
+          const closeTopVolume = useTopLiquidity
+            ? Math.min(spotVolume, gateBidQty, mexcAskQty)
+            : spotVolume;
+          if (shouldAutoOpen) {
+            const selectedVolume = openTopVolume;
+            const gateAvailable = Number(exposureState.gateQty);
+            const gateSpotVolume =
+              Number.isFinite(gateAvailable) &&
+              gateAvailable > 0 &&
+              gateAvailable < selectedVolume
+                ? gateAvailable
+                : selectedVolume;
+            if (
+              Number.isFinite(selectedVolume) &&
+              selectedVolume > 0 &&
+              Number.isFinite(gateSpotVolume) &&
+              gateSpotVolume > 0
+            ) {
+              const logPayload = {
+                open: {
+                  gatePrice: gateAskPx,
+                  mexcPrice: mexcBidPx,
+                  spotVolume: gateSpotVolume,
+                  futuresContracts: selectedVolume,
+                  spread: spreadOpen,
+                  at: now
+                },
+                close: null,
+                snapshot: {
+                  spotVolume: gateSpotVolume,
+                  futuresContracts: selectedVolume
+                }
+              };
+              syncExecutionLog(logPayload);
+              sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
+              const payload = {
                 spotVolume: gateSpotVolume,
-                futuresContracts
-              }
-            };
-            syncExecutionLog(logPayload);
-            sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
-            const closeContracts = shouldAutoClose
-              ? Math.min(futuresContracts, closePositionQty)
-              : futuresContracts;
-            const payload = {
-              spotVolume: gateSpotVolume,
-              futuresContracts: closeContracts,
-              pairGate: data.pairGate || '',
-              pairMexc: data.pairMexc || '',
-              modes: {
-                openEnabled: shouldAutoOpen,
-                closeEnabled: shouldAutoClose
-              },
-              submitDelayMs: settings.submitDelayMs
-            };
-            const group = normalizeGroup(
-              document.getElementById('arbGroup')?.value || currentGroup
-            );
-            sendRuntimeMessage({
-              type: 'SYNC_LIVE_EXECUTION',
-              payload,
-              group
-            }).then((response) => {
-              if (response?.status) updateLinkStatus(response.status);
-            });
-            if (shouldAutoOpen) lastAutoExecution.open = now;
-            if (shouldAutoClose) lastAutoExecution.close = now;
-            if (shouldAutoOpen || shouldAutoClose) {
+                futuresContracts: selectedVolume,
+                pairGate: data.pairGate || '',
+                pairMexc: data.pairMexc || '',
+                modes: {
+                  openEnabled: true,
+                  closeEnabled: false
+                },
+                submitDelayMs: settings.submitDelayMs
+              };
+              const group = normalizeGroup(
+                document.getElementById('arbGroup')?.value || currentGroup
+              );
+              sendRuntimeMessage({
+                type: 'SYNC_LIVE_EXECUTION',
+                payload,
+                group
+              }).then((response) => {
+                if (response?.status) updateLinkStatus(response.status);
+              });
+              lastAutoExecution.open = now;
+              refreshGateTradeHistory();
+            }
+          }
+          if (shouldAutoClose) {
+            const selectedVolume = closeTopVolume;
+            const gateAvailable = Number(exposureState.gateQty);
+            const gateSpotVolume =
+              Number.isFinite(gateAvailable) &&
+              gateAvailable > 0 &&
+              gateAvailable < selectedVolume
+                ? gateAvailable
+                : selectedVolume;
+            if (
+              Number.isFinite(selectedVolume) &&
+              selectedVolume > 0 &&
+              Number.isFinite(gateSpotVolume) &&
+              gateSpotVolume > 0
+            ) {
+              const closeContracts = Math.min(selectedVolume, closePositionQty);
+              const logPayload = {
+                open: null,
+                close: {
+                  gatePrice: gateBidPx,
+                  mexcPrice: mexcAskPx,
+                  spotVolume: gateSpotVolume,
+                  futuresContracts: closeContracts,
+                  spread: spreadClose
+                },
+                snapshot: {
+                  spotVolume: gateSpotVolume,
+                  futuresContracts: closeContracts
+                }
+              };
+              syncExecutionLog(logPayload);
+              sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
+              const payload = {
+                spotVolume: gateSpotVolume,
+                futuresContracts: closeContracts,
+                pairGate: data.pairGate || '',
+                pairMexc: data.pairMexc || '',
+                modes: {
+                  openEnabled: false,
+                  closeEnabled: true
+                },
+                submitDelayMs: settings.submitDelayMs
+              };
+              const group = normalizeGroup(
+                document.getElementById('arbGroup')?.value || currentGroup
+              );
+              sendRuntimeMessage({
+                type: 'SYNC_LIVE_EXECUTION',
+                payload,
+                group
+              }).then((response) => {
+                if (response?.status) updateLinkStatus(response.status);
+              });
+              lastAutoExecution.close = now;
               refreshGateTradeHistory();
             }
           }
@@ -1437,6 +1573,9 @@ console.log('🧩 content_gate.js carregado');
       updateInput('exposurePerAsset', settings.exposurePerAsset);
       updateInput('exposurePerExchange', settings.exposurePerExchange);
       updateInput('exposureGlobal', settings.exposureGlobal);
+      updateInput('autoCloseProfitPercent', settings.autoCloseProfitPercent);
+      updateInput('autoCloseProfitUsdt', settings.autoCloseProfitUsdt);
+      updateInput('autoCloseMinutes', settings.autoCloseMinutes);
       updateInput('testVolume', settings.testVolume);
       const testBtn = document.getElementById('testBtn');
       if (testBtn) {
@@ -1466,6 +1605,8 @@ console.log('🧩 content_gate.js carregado');
       applyCheckbox('allowPartialExecution', settings.allowPartialExecution);
       applyCheckbox('enableLiveExecution', settings.enableLiveExecution);
       applyCheckbox('syncExecutionEnabled', settings.syncTestExecution);
+      applyCheckbox('limitToTopLiquidity', settings.limitToTopLiquidity);
+      applyCheckbox('enableAutoRebalance', settings.enableAutoRebalance);
       if (settings.executionModes) {
         applyCheckbox('openEnabled', settings.executionModes.openEnabled);
         applyCheckbox('closeEnabled', settings.executionModes.closeEnabled);

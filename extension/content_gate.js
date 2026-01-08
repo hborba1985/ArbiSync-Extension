@@ -1414,10 +1414,10 @@ console.log('🧩 content_gate.js carregado');
           const spotVolume = Number(settings.spotVolume);
           const useTopLiquidity = !!settings.limitToTopLiquidity;
           const openTopVolume = useTopLiquidity
-            ? Math.min(spotVolume, gateAskQty, mexcBidQty)
+            ? Math.min(gateAskQty, mexcBidQty)
             : spotVolume;
           const closeTopVolume = useTopLiquidity
-            ? Math.min(spotVolume, gateBidQty, mexcAskQty)
+            ? Math.min(gateBidQty, mexcAskQty)
             : spotVolume;
           if (shouldAutoOpen) {
             const selectedVolume = openTopVolume;

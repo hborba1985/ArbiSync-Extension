@@ -1413,8 +1413,25 @@ console.log('🧩 content_gate.js carregado');
         if (shouldAutoOpen || shouldAutoClose) {
           const spotVolume = Number(settings.spotVolume);
           const useTopLiquidity = !!settings.limitToTopLiquidity;
+          const remainingPerExchange =
+            Number.isFinite(perExchangeLimit) && perExchangeLimit > 0
+              ? Math.max(perExchangeLimit - currentGateQty, 0)
+              : Infinity;
+          const remainingPerAsset =
+            Number.isFinite(perAssetLimit) && perAssetLimit > 0
+              ? Math.max(perAssetLimit - (currentGateQty + currentMexcQty), 0)
+              : Infinity;
+          const remainingGlobal =
+            Number.isFinite(globalLimit) && globalLimit > 0
+              ? Math.max(globalLimit - (currentGateQty + currentMexcQty), 0)
+              : Infinity;
+          const remainingLimit = Math.min(
+            remainingPerExchange,
+            remainingPerAsset,
+            remainingGlobal
+          );
           const openTopVolume = useTopLiquidity
-            ? Math.min(gateAskQty, mexcBidQty)
+            ? Math.min(gateAskQty, mexcBidQty, remainingLimit)
             : spotVolume;
           const closeTopVolume = useTopLiquidity
             ? Math.min(gateBidQty, mexcAskQty)

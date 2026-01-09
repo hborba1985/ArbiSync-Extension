@@ -203,22 +203,25 @@
     };
     const findCloseQtyInput = () => {
       const form = document.querySelector('[data-testid="contract-trade-order-form"]');
-      if (!form) return null;
+      const root = form || document.querySelector('#mexc-web-handle-content-wrapper-v');
+      if (!root) return null;
       const closeButton =
-        form.querySelector('button[data-testid="contract-trade-close-short-btn"]') ||
+        root.querySelector('button[data-testid="contract-trade-close-short-btn"]') ||
         document.querySelector(
           '#mexc-web-handle-content-wrapper-v > div:nth-child(2) > div > div > div.component_inputWrapper__LP4Dm > div:nth-child(3) > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_longBtn__eazYU.component_withColor__LqLhs'
         );
       if (closeButton) {
         const container = closeButton.closest('section') || closeButton.closest('div');
-        const scopedInput = container?.querySelector('input[type="text"], input[type="number"]');
-        if (scopedInput && scopedInput.offsetParent !== null) {
+        const scopedInput = container?.querySelector(
+          'input[type="text"], input[type="number"]'
+        );
+        if (scopedInput) {
           return scopedInput;
         }
       }
       const inputs = Array.from(
-        form.querySelectorAll('input[type="text"], input[type="number"]')
-      ).filter((input) => input.offsetParent !== null);
+        root.querySelectorAll('input[type="text"], input[type="number"]')
+      );
       return inputs[inputs.length - 1] || null;
     };
     const findSellButton = () =>
@@ -283,7 +286,6 @@
     const setContracts = (mode) => {
       const qtyInput = mode === 'close' ? findCloseQtyInput() : getQtyInput(mode);
       if (!qtyInput) return null;
-      if (mode === 'close' && qtyInput.offsetParent === null) return null;
       setNativeValue(qtyInput, String(contracts));
       dispatchInputEvents(qtyInput);
       const parseQty = (value) => {

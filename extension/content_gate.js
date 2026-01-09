@@ -1641,15 +1641,8 @@ console.log('🧩 content_gate.js carregado');
             : spotVolume;
           if (shouldAutoOpen) {
             const selectedVolume = openTopVolume;
-            const gateAvailable = Number(exposureState.gateQty);
-            const gateSpotVolume =
-              Number.isFinite(gateAvailable) &&
-              gateAvailable > 0 &&
-              gateAvailable < selectedVolume
-                ? gateAvailable
-                : selectedVolume;
             const normalizedVolume = floorToStep(
-              gateSpotVolume,
+              selectedVolume,
               MEXC_MIN_QTY_STEP
             );
             if (normalizedVolume <= 0) {

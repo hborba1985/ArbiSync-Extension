@@ -1723,6 +1723,15 @@ console.log('🧩 content_gate.js carregado');
                 ? Math.max(gateAvailable - minGateReserveTokens, 0)
                 : gateAvailable;
             const gateSpotVolume = Math.min(selectedVolume, maxClosable);
+            if (gateSpotVolume < selectedVolume && maxClosable >= 0) {
+              broadcastLogEntry(
+                `Ordem CLOSE limitada pela reserva mínima da Gate (${formatNumber(
+                  minGateReserveTokens,
+                  4
+                )} tokens).`,
+                'info'
+              );
+            }
             const closeContracts = Math.min(gateSpotVolume, closePositionQty);
             const normalizedVolume = floorToStep(
               closeContracts,

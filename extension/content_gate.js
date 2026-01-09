@@ -7,9 +7,13 @@ console.log('🧩 content_gate.js carregado');
   const EXCHANGE = 'GATE';
   const GROUP_STORAGE_KEY = 'arbsync_group';
   const AUTO_EXECUTION_COOLDOWN_FALLBACK_MS = 7000;
+  const MIN_GATE_ORDER_USDT = 1;
+  const MEXC_MIN_QTY_STEP = 10;
   let lastDomBookUpdate = 0;
-  const lastAutoExecution = { open: 0, close: 0 };
+  const lastAutoExecution = { open: 0, close: 0, rebalance: 0 };
   const executionLog = { open: null, close: null };
+  const logEntries = [];
+  const LOG_MAX_ENTRIES = 200;
   const domBookCache = {
     gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
     mexc: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null }
@@ -24,6 +28,7 @@ console.log('🧩 content_gate.js carregado');
     gateAvg: null,
     mexcAvg: null
   };
+  let lastLimitStatusMessage = null;
   let latestSettings = {};
 
   function safeStorageGet(key) {
@@ -103,7 +108,9 @@ console.log('🧩 content_gate.js carregado');
           }
         });
         setupMinimize();
+        setupTabs();
         registerTab();
+        updateLogEmptyState();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -114,6 +121,72 @@ console.log('🧩 content_gate.js carregado');
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = value;
+  }
+
+  function setupTabs() {
+    const tabButtons = Array.from(
+      document.querySelectorAll('#arb-panel .panel-tab[data-tab-target]')
+    );
+    const tabContents = Array.from(
+      document.querySelectorAll('#arb-panel .panel-tab-content')
+    );
+    if (!tabButtons.length || !tabContents.length) return;
+
+    const activateTab = (target) => {
+      tabButtons.forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.tabTarget === target);
+      });
+      tabContents.forEach((content) => {
+        content.classList.toggle(
+          'is-active',
+          content.dataset.tabContent === target
+        );
+      });
+    };
+
+    tabButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        activateTab(btn.dataset.tabTarget);
+      });
+    });
+
+    activateTab(tabButtons.find((btn) => btn.classList.contains('is-active'))?.dataset.tabTarget || 'trading');
+  }
+
+  function updateLogEmptyState() {
+    const emptyState = document.getElementById('arb-log-empty');
+    const list = document.getElementById('arb-log-list');
+    if (!emptyState || !list) return;
+    emptyState.style.display = list.children.length ? 'none' : 'block';
+  }
+
+  function appendLogEntry(entry) {
+    if (!entry) return;
+    const list = document.getElementById('arb-log-list');
+    if (!list) return;
+    const time = new Date(entry.at || Date.now());
+    const timeLabel = time.toLocaleTimeString('pt-BR');
+    const item = document.createElement('div');
+    item.className = `log-entry ${entry.level ? `is-${entry.level}` : ''}`.trim();
+    item.innerHTML = `<span class="log-time">${timeLabel}</span><span class="log-message">${entry.message}</span>`;
+    list.appendChild(item);
+    logEntries.push(entry);
+    while (logEntries.length > LOG_MAX_ENTRIES) {
+      logEntries.shift();
+      list.removeChild(list.firstChild);
+    }
+    updateLogEmptyState();
+  }
+
+  function broadcastLogEntry(message, level = 'info') {
+    const entry = {
+      message,
+      level,
+      at: Date.now(),
+      source: EXCHANGE
+    };
+    appendLogEntry(entry);
+    sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: { logEntry: entry } });
   }
 
   function setupMinimize() {
@@ -487,6 +560,16 @@ console.log('🧩 content_gate.js carregado');
     });
   }
 
+  function floorToStep(value, step) {
+    if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) return 0;
+    return Math.floor(value / step) * step;
+  }
+
+  function isGateNotionalOk(volume, price) {
+    if (!Number.isFinite(volume) || !Number.isFinite(price)) return false;
+    return volume * price >= MIN_GATE_ORDER_USDT;
+  }
+
   function parseNumber(value) {
     if (value == null) return null;
     let cleaned = String(value).replace(/[^\d.,kKmM-]/g, '');
@@ -817,10 +900,22 @@ console.log('🧩 content_gate.js carregado');
       ) {
         reasons.push('GLOBAL');
       }
-      status.textContent =
+      const nextMessage =
         reasons.length > 0
           ? `LIMITES: ${reasons.join(', ')} atingido(s)`
           : 'LIMITES: OK';
+      status.textContent = nextMessage;
+      if (nextMessage !== lastLimitStatusMessage) {
+        if (reasons.length > 0) {
+          broadcastLogEntry(
+            `Limites atingidos: ${reasons.join(', ')}.`,
+            'warn'
+          );
+        } else if (lastLimitStatusMessage && lastLimitStatusMessage !== 'LIMITES: OK') {
+          broadcastLogEntry('Limites normalizados.', 'info');
+        }
+        lastLimitStatusMessage = nextMessage;
+      }
     };
     const renderWith = (
       gateQty,
@@ -949,6 +1044,9 @@ console.log('🧩 content_gate.js carregado');
     }
     if (payload.close) {
       executionLog.close = payload.close;
+    }
+    if (payload.logEntry) {
+      appendLogEntry(payload.logEntry);
     }
     updatePositionPanel(payload.snapshot || {});
   }
@@ -1097,6 +1195,7 @@ console.log('🧩 content_gate.js carregado');
     if (testStatus) {
       testStatus.textContent = `TESTE: ${message}`;
     }
+    broadcastLogEntry(`Falha na execução: ${message}`, 'error');
     if (window.alert) {
       window.alert(message);
     }
@@ -1285,7 +1384,8 @@ console.log('🧩 content_gate.js carregado');
       }
 
       const autoExecutionEnabled = !!settings.enableLiveExecution;
-      if (autoExecutionEnabled) {
+      const rebalanceEnabled = !!settings.enableAutoRebalance;
+      if (autoExecutionEnabled || rebalanceEnabled) {
         const executionModes = settings.executionModes || {};
         const openModeEnabled = !!executionModes.openEnabled;
         const closeModeEnabled = !!executionModes.closeEnabled;
@@ -1333,6 +1433,8 @@ console.log('🧩 content_gate.js carregado');
           now - lastAutoExecution.open >= cooldownMs;
         const closeCooldownOk =
           now - lastAutoExecution.close >= cooldownMs;
+        const rebalanceCooldownOk =
+          now - lastAutoExecution.rebalance >= cooldownMs;
         const currentGateQty = Math.abs(Number(exposureState.gateQty) || 0);
         const currentMexcQty = Math.abs(Number(exposureState.mexcQty) || 0);
         const projectedGateQty = currentGateQty + Number(settings.spotVolume || 0);
@@ -1390,13 +1492,113 @@ console.log('🧩 content_gate.js carregado');
           Number.isFinite(openAt) &&
           now - openAt >= timeTargetMinutes * 60 * 1000;
         const closeForced = profitPercentOk || profitUsdtOk || timeOk;
-        const rebalanceEnabled = !!settings.enableAutoRebalance;
+        const rebalanceDelta =
+          Number.isFinite(currentGateQty) && Number.isFinite(currentMexcQty)
+            ? currentMexcQty - currentGateQty
+            : null;
         const rebalanceNeeded =
           rebalanceEnabled &&
-          Number.isFinite(currentGateQty) &&
-          Number.isFinite(currentMexcQty) &&
-          Math.abs(currentGateQty - currentMexcQty) > 0.0001;
+          Number.isFinite(rebalanceDelta) &&
+          Math.abs(rebalanceDelta) > 0.0001;
+        let rebalanceHandled = false;
+
+        if (rebalanceNeeded) {
+          const targetExchange = rebalanceDelta > 0 ? 'GATE' : 'MEXC';
+          const deltaVolume = Math.abs(rebalanceDelta);
+          if (!rebalanceCooldownOk) {
+            broadcastLogEntry(
+              `Auto-rebalance aguardando cooldown. Diferença atual: ${formatNumber(deltaVolume, 4)} tokens.`,
+              'warn'
+            );
+            rebalanceHandled = true;
+          } else if (targetExchange === 'GATE') {
+            if (!isGateNotionalOk(deltaVolume, gateAskPx)) {
+              broadcastLogEntry(
+                `Auto-rebalance ignorado: ordem na Gate abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatNumber(
+                  deltaVolume,
+                  4
+                )} tokens).`,
+                'warn'
+              );
+              rebalanceHandled = true;
+            } else {
+              const payload = {
+                spotVolume: deltaVolume,
+                futuresContracts: 0,
+                pairGate: data.pairGate || '',
+                pairMexc: data.pairMexc || '',
+                modes: {
+                  openEnabled: true,
+                  closeEnabled: false
+                },
+                submitDelayMs: settings.submitDelayMs
+              };
+              const group = normalizeGroup(
+                document.getElementById('arbGroup')?.value || currentGroup
+              );
+              broadcastLogEntry(
+                `Auto-rebalance: comprando ${formatNumber(
+                  deltaVolume,
+                  4
+                )} tokens na Gate para igualar a MEXC.`,
+                'success'
+              );
+              sendRuntimeMessage({
+                type: 'SYNC_LIVE_EXECUTION',
+                payload,
+                group
+              }).then((response) => {
+                if (response?.status) updateLinkStatus(response.status);
+              });
+              lastAutoExecution.rebalance = now;
+              refreshGateTradeHistory();
+              rebalanceHandled = true;
+            }
+          } else if (targetExchange === 'MEXC') {
+            const normalizedVolume = floorToStep(deltaVolume, MEXC_MIN_QTY_STEP);
+            if (normalizedVolume <= 0) {
+              broadcastLogEntry(
+                `Auto-rebalance ignorado: diferença abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens na MEXC.`,
+                'warn'
+              );
+              rebalanceHandled = true;
+            } else {
+              const payload = {
+                spotVolume: 0,
+                futuresContracts: normalizedVolume,
+                pairGate: data.pairGate || '',
+                pairMexc: data.pairMexc || '',
+                modes: {
+                  openEnabled: true,
+                  closeEnabled: false
+                },
+                submitDelayMs: settings.submitDelayMs
+              };
+              const group = normalizeGroup(
+                document.getElementById('arbGroup')?.value || currentGroup
+              );
+              broadcastLogEntry(
+                `Auto-rebalance: abrindo ${formatNumber(
+                  normalizedVolume,
+                  4
+                )} contratos na MEXC para igualar a Gate.`,
+                'success'
+              );
+              sendRuntimeMessage({
+                type: 'SYNC_LIVE_EXECUTION',
+                payload,
+                group
+              }).then((response) => {
+                if (response?.status) updateLinkStatus(response.status);
+              });
+              lastAutoExecution.rebalance = now;
+              rebalanceHandled = true;
+            }
+          }
+        }
+
         const shouldAutoOpen =
+          autoExecutionEnabled &&
           openModeEnabled &&
           openEligible &&
           openSpreadOk &&
@@ -1404,13 +1606,14 @@ console.log('🧩 content_gate.js carregado');
           openCooldownOk &&
           exposureOk;
         const shouldAutoClose =
+          autoExecutionEnabled &&
           closeModeEnabled &&
           hasCloseExposure &&
           closeEligible &&
-          (closeForced || rebalanceNeeded || (closeSpreadOk && closeLiquidityOk)) &&
+          (closeForced || (closeSpreadOk && closeLiquidityOk)) &&
           closeCooldownOk;
 
-        if (shouldAutoOpen || shouldAutoClose) {
+        if (!rebalanceHandled && (shouldAutoOpen || shouldAutoClose)) {
           const spotVolume = Number(settings.spotVolume);
           const useTopLiquidity = !!settings.limitToTopLiquidity;
           const remainingPerExchange =
@@ -1445,32 +1648,44 @@ console.log('🧩 content_gate.js carregado');
               gateAvailable < selectedVolume
                 ? gateAvailable
                 : selectedVolume;
-            if (
-              Number.isFinite(selectedVolume) &&
-              selectedVolume > 0 &&
-              Number.isFinite(gateSpotVolume) &&
-              gateSpotVolume > 0
-            ) {
+            const normalizedVolume = floorToStep(
+              gateSpotVolume,
+              MEXC_MIN_QTY_STEP
+            );
+            if (normalizedVolume <= 0) {
+              broadcastLogEntry(
+                `Ordem OPEN ignorada: volume abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens.`,
+                'warn'
+              );
+            } else if (!isGateNotionalOk(normalizedVolume, gateAskPx)) {
+              broadcastLogEntry(
+                `Ordem OPEN ignorada: valor abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatNumber(
+                  normalizedVolume,
+                  4
+                )} tokens).`,
+                'warn'
+              );
+            } else {
               const logPayload = {
                 open: {
                   gatePrice: gateAskPx,
                   mexcPrice: mexcBidPx,
-                  spotVolume: gateSpotVolume,
-                  futuresContracts: selectedVolume,
+                  spotVolume: normalizedVolume,
+                  futuresContracts: normalizedVolume,
                   spread: spreadOpen,
                   at: now
                 },
                 close: null,
                 snapshot: {
-                  spotVolume: gateSpotVolume,
-                  futuresContracts: selectedVolume
+                  spotVolume: normalizedVolume,
+                  futuresContracts: normalizedVolume
                 }
               };
               syncExecutionLog(logPayload);
               sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
               const payload = {
-                spotVolume: gateSpotVolume,
-                futuresContracts: selectedVolume,
+                spotVolume: normalizedVolume,
+                futuresContracts: normalizedVolume,
                 pairGate: data.pairGate || '',
                 pairMexc: data.pairMexc || '',
                 modes: {
@@ -1481,6 +1696,16 @@ console.log('🧩 content_gate.js carregado');
               };
               const group = normalizeGroup(
                 document.getElementById('arbGroup')?.value || currentGroup
+              );
+              broadcastLogEntry(
+                `Ordem OPEN enviada: ${formatNumber(
+                  normalizedVolume,
+                  4
+                )} tokens (Gate @ ${formatNumber(
+                  gateAskPx,
+                  6
+                )}).`,
+                'success'
               );
               sendRuntimeMessage({
                 type: 'SYNC_LIVE_EXECUTION',
@@ -1502,32 +1727,44 @@ console.log('🧩 content_gate.js carregado');
               gateAvailable < selectedVolume
                 ? gateAvailable
                 : selectedVolume;
-            if (
-              Number.isFinite(selectedVolume) &&
-              selectedVolume > 0 &&
-              Number.isFinite(gateSpotVolume) &&
-              gateSpotVolume > 0
-            ) {
-              const closeContracts = Math.min(selectedVolume, closePositionQty);
+            const closeContracts = Math.min(gateSpotVolume, closePositionQty);
+            const normalizedVolume = floorToStep(
+              closeContracts,
+              MEXC_MIN_QTY_STEP
+            );
+            if (normalizedVolume <= 0) {
+              broadcastLogEntry(
+                `Ordem CLOSE ignorada: volume abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens.`,
+                'warn'
+              );
+            } else if (!isGateNotionalOk(normalizedVolume, gateBidPx)) {
+              broadcastLogEntry(
+                `Ordem CLOSE ignorada: valor abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatNumber(
+                  normalizedVolume,
+                  4
+                )} tokens).`,
+                'warn'
+              );
+            } else {
               const logPayload = {
                 open: null,
                 close: {
                   gatePrice: gateBidPx,
                   mexcPrice: mexcAskPx,
-                  spotVolume: gateSpotVolume,
-                  futuresContracts: closeContracts,
+                  spotVolume: normalizedVolume,
+                  futuresContracts: normalizedVolume,
                   spread: spreadClose
                 },
                 snapshot: {
-                  spotVolume: gateSpotVolume,
-                  futuresContracts: closeContracts
+                  spotVolume: normalizedVolume,
+                  futuresContracts: normalizedVolume
                 }
               };
               syncExecutionLog(logPayload);
               sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
               const payload = {
-                spotVolume: gateSpotVolume,
-                futuresContracts: closeContracts,
+                spotVolume: normalizedVolume,
+                futuresContracts: normalizedVolume,
                 pairGate: data.pairGate || '',
                 pairMexc: data.pairMexc || '',
                 modes: {
@@ -1538,6 +1775,16 @@ console.log('🧩 content_gate.js carregado');
               };
               const group = normalizeGroup(
                 document.getElementById('arbGroup')?.value || currentGroup
+              );
+              broadcastLogEntry(
+                `Ordem CLOSE enviada: ${formatNumber(
+                  normalizedVolume,
+                  4
+                )} tokens (Gate @ ${formatNumber(
+                  gateBidPx,
+                  6
+                )}).`,
+                'success'
               );
               sendRuntimeMessage({
                 type: 'SYNC_LIVE_EXECUTION',

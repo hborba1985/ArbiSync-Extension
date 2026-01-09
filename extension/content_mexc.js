@@ -13,6 +13,38 @@ console.log('🧩 content_mexc.js carregado');
   };
   let currentGroup = sessionStorage.getItem(GROUP_STORAGE_KEY) || '';
   const latestPairs = { gate: '', mexc: '' };
+  const exposureState = { exchange: EXCHANGE, asset: null };
+  let latestSettings = {};
+
+  function safeStorageGet(key) {
+    return new Promise((resolve) => {
+      const status = document.getElementById('storageStatus');
+      try {
+        chrome.storage.local.get([key], (result) => {
+          if (status) status.textContent = 'STORAGE: OK';
+          resolve(result?.[key]);
+        });
+      } catch {
+        if (status) status.textContent = 'STORAGE: FALHOU';
+        resolve(null);
+      }
+    });
+  }
+
+  function safeStorageSet(payload) {
+    return new Promise((resolve) => {
+      const status = document.getElementById('storageStatus');
+      try {
+        chrome.storage.local.set(payload, () => {
+          if (status) status.textContent = 'STORAGE: OK';
+          resolve(true);
+        });
+      } catch {
+        if (status) status.textContent = 'STORAGE: FALHOU';
+        resolve(false);
+      }
+    });
+  }
 
   function ensureOverlay() {
     if (document.getElementById(OVERLAY_ID)) return;
@@ -45,13 +77,22 @@ console.log('🧩 content_mexc.js carregado');
         setText('bidMexc', '--');
         setText('spread', '--');
         setText('coreStatus', 'CORE: aguardando...');
-        setText('riskStatus', 'FILTROS: --');
-        setText('conversionStatus', 'FUTUROS: -- contratos');
 
         setupActions();
         setupDrag();
         setupResize();
         startDomLiquidityPolling();
+        startExposurePolling();
+        ensureMexcLayout();
+        startPairSync();
+        sendRuntimeMessage({ type: 'REQUEST_CORE_STATUS' }).then((response) => {
+          if (response?.ok === true) {
+            setText('coreStatus', 'CORE: conectado');
+          } else if (response?.ok === false) {
+            setText('coreStatus', 'CORE: desconectado');
+          }
+        });
+        setupMinimize();
         registerTab();
       })
       .catch((err) => {
@@ -63,6 +104,36 @@ console.log('🧩 content_mexc.js carregado');
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = value;
+  }
+
+  function setupMinimize() {
+    const panel = document.getElementById('arb-panel');
+    const minimizeBtn = document.getElementById('minimizeOverlayBtn');
+    const minimizedToggle = document.getElementById('arb-minimized-toggle');
+    if (!panel || !minimizeBtn || !minimizedToggle) return;
+
+    const applyState = (minimized) => {
+      if (!panel.dataset.displayBefore) {
+        panel.dataset.displayBefore = panel.style.display || 'block';
+      }
+      panel.style.display = minimized ? 'none' : panel.dataset.displayBefore;
+      minimizedToggle.classList.toggle('show', minimized);
+      minimizedToggle.style.display = minimized ? 'inline-flex' : 'none';
+    };
+
+    minimizeBtn.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      applyState(true);
+    });
+
+    minimizedToggle.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      applyState(false);
+    });
+
+    applyState(false);
   }
 
   function sendCommand(command) {
@@ -121,7 +192,6 @@ console.log('🧩 content_mexc.js carregado');
   }
 
   function setupActions() {
-    const saveBtn = document.getElementById('saveSettingsBtn');
     const testBtn = document.getElementById('testBtn');
     const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
     const arbGroupInput = document.getElementById('arbGroup');
@@ -130,18 +200,19 @@ console.log('🧩 content_mexc.js carregado');
     let settingsTimer = null;
     const inputs = [
       'spotVolume',
-      'futuresContractSize',
-      'spreadMin',
-      'minVolume',
-      'minLiquidity',
+      'spreadMinOpen',
+      'spreadMinClose',
+      'minLiquidityOpen',
+      'minLiquidityClose',
+      'autoExecutionCooldownMs',
       'refreshIntervalMs',
       'submitDelayMs',
-      'slippageMax',
-      'slippageEstimate',
-      'maxAlertsPerMinute',
       'exposurePerAsset',
       'exposurePerExchange',
       'exposureGlobal',
+      'autoCloseProfitPercent',
+      'autoCloseProfitUsdt',
+      'autoCloseMinutes',
       'testVolume'
     ];
     inputs.forEach((id) => {
@@ -156,12 +227,38 @@ console.log('🧩 content_mexc.js carregado');
     if (allowPartial) {
       allowPartial.addEventListener('change', () => {
         allowPartial.dataset.userEdited = 'true';
+        allowPartial.dataset.userEditedAt = String(Date.now());
+        scheduleSettingsUpdate();
+      });
+    }
+    const liveExecution = document.getElementById('enableLiveExecution');
+    if (liveExecution) {
+      liveExecution.addEventListener('change', () => {
+        liveExecution.dataset.userEdited = 'true';
+        liveExecution.dataset.userEditedAt = String(Date.now());
         scheduleSettingsUpdate();
       });
     }
     if (syncExecutionEnabled) {
       syncExecutionEnabled.addEventListener('change', () => {
         syncExecutionEnabled.dataset.userEdited = 'true';
+        syncExecutionEnabled.dataset.userEditedAt = String(Date.now());
+        scheduleSettingsUpdate();
+      });
+    }
+    const limitToTopLiquidity = document.getElementById('limitToTopLiquidity');
+    if (limitToTopLiquidity) {
+      limitToTopLiquidity.addEventListener('change', () => {
+        limitToTopLiquidity.dataset.userEdited = 'true';
+        limitToTopLiquidity.dataset.userEditedAt = String(Date.now());
+        scheduleSettingsUpdate();
+      });
+    }
+    const enableAutoRebalance = document.getElementById('enableAutoRebalance');
+    if (enableAutoRebalance) {
+      enableAutoRebalance.addEventListener('change', () => {
+        enableAutoRebalance.dataset.userEdited = 'true';
+        enableAutoRebalance.dataset.userEditedAt = String(Date.now());
         scheduleSettingsUpdate();
       });
     }
@@ -171,6 +268,7 @@ console.log('🧩 content_mexc.js carregado');
       if (!el) return;
       el.addEventListener('change', () => {
         el.dataset.userEdited = 'true';
+        el.dataset.userEditedAt = String(Date.now());
         scheduleSettingsUpdate();
       });
     });
@@ -183,22 +281,27 @@ console.log('🧩 content_mexc.js carregado');
 
     const readSettings = () => ({
       spotVolume: readNumber('spotVolume'),
-      futuresContractSize: readNumber('futuresContractSize'),
-      spreadMin: readNumber('spreadMin'),
-      minVolume: readNumber('minVolume'),
-      minLiquidity: readNumber('minLiquidity'),
+      spreadMinOpen: readNumber('spreadMinOpen'),
+      spreadMinClose: readNumber('spreadMinClose'),
+      minLiquidityOpen: readNumber('minLiquidityOpen'),
+      minLiquidityClose: readNumber('minLiquidityClose'),
       refreshIntervalMs: readNumber('refreshIntervalMs'),
       submitDelayMs: readNumber('submitDelayMs'),
-      slippageMax: readNumber('slippageMax'),
-      slippageEstimate: readNumber('slippageEstimate'),
-      maxAlertsPerMinute: readNumber('maxAlertsPerMinute'),
       exposurePerAsset: readNumber('exposurePerAsset'),
       exposurePerExchange: readNumber('exposurePerExchange'),
       exposureGlobal: readNumber('exposureGlobal'),
+      autoCloseProfitPercent: readNumber('autoCloseProfitPercent'),
+      autoCloseProfitUsdt: readNumber('autoCloseProfitUsdt'),
+      autoCloseMinutes: readNumber('autoCloseMinutes'),
+      limitToTopLiquidity:
+        document.getElementById('limitToTopLiquidity')?.checked ?? false,
+      enableAutoRebalance:
+        document.getElementById('enableAutoRebalance')?.checked ?? false,
       allowPartialExecution:
         document.getElementById('allowPartialExecution')?.checked ?? false,
       testVolume: readNumber('testVolume'),
-      enableLiveExecution: false,
+      enableLiveExecution: liveExecution?.checked ?? false,
+      autoExecutionCooldownMs: readNumber('autoExecutionCooldownMs'),
       syncTestExecution: syncExecutionEnabled?.checked ?? false,
       executionModes: {
         openEnabled: openEnabled?.checked ?? true,
@@ -220,12 +323,6 @@ console.log('🧩 content_mexc.js carregado');
         settingsTimer = null;
       }, 150);
     };
-
-    if (saveBtn) {
-      saveBtn.addEventListener('click', () => {
-        sendCommand({ action: 'UPDATE_SETTINGS', settings: readSettings() });
-      });
-    }
 
     if (testBtn) {
       testBtn.addEventListener('click', () => {
@@ -397,6 +494,362 @@ console.log('🧩 content_mexc.js carregado');
     return Number.isFinite(parsed) ? parsed * multiplier : null;
   }
 
+  function parseLocaleNumber(value) {
+    if (value == null) return null;
+    const cleaned = String(value).replace(/\s+/g, '');
+    const numeric = cleaned.replace(/[^\d.,-]/g, '');
+    const lastComma = numeric.lastIndexOf(',');
+    const lastDot = numeric.lastIndexOf('.');
+    let normalized = numeric;
+
+    if (lastComma !== -1 && lastDot === -1) {
+      const fraction = numeric.slice(lastComma + 1);
+      if (fraction.length === 3) {
+        normalized = numeric.replace(/,/g, '');
+      } else {
+        normalized = numeric.replace(/,/g, '.');
+      }
+    } else if (lastDot !== -1 && lastComma === -1) {
+      const fraction = numeric.slice(lastDot + 1);
+      if (fraction.length === 3) {
+        normalized = numeric.replace(/\./g, '');
+      }
+    } else if (lastComma !== -1 && lastDot !== -1) {
+      const decimalIndex = Math.max(lastComma, lastDot);
+      const integerPart = numeric.slice(0, decimalIndex).replace(/[.,]/g, '');
+      const fractionalPart = numeric.slice(decimalIndex + 1).replace(/[.,]/g, '');
+      normalized = `${integerPart}.${fractionalPart}`;
+    } else {
+      normalized = numeric.replace(/[.,]/g, '');
+    }
+    const parsed = Number(normalized.replace(/[^\d.-]/g, ''));
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+
+  function parseTokenAmount(value) {
+    if (!value) return { qty: null, asset: null };
+    const cleaned = String(value)
+      .replace(/["']/g, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    const parts = cleaned.split(' ');
+    const qty = parseLocaleNumber(parts[0]);
+    const asset = parts
+      .slice(1)
+      .join(' ')
+      .replace(/[^A-Za-z0-9-]/g, '')
+      .trim() || null;
+    return { qty, asset };
+  }
+
+  function ensureMexcLayout() {
+    const checkbox = document.querySelector(
+      '#mexc-web-futures-exchange-handle-content-right > div.HideOtherPairs_showAll__H8zW6.hide-other-pairs > label > span.ant-checkbox-v2 > input'
+    );
+    if (checkbox && !checkbox.checked) {
+      checkbox.click();
+    }
+  }
+
+  function getPairFromMexcUrl() {
+    const match = window.location.pathname.match(/\/futures\/([^/?#]+)/);
+    if (!match) return null;
+    return match[1].toUpperCase();
+  }
+
+  function getAssetFromPair(pair) {
+    if (!pair) return null;
+    const base = pair.split('_')[0] || pair.split('/')[0];
+    return base ? base.toUpperCase() : null;
+  }
+
+  function syncPairFromUrl() {
+    const pair = getPairFromMexcUrl();
+    if (!pair) return;
+    if (latestPairs.mexc === pair) return;
+    latestPairs.mexc = pair;
+    exposureState.asset = getAssetFromPair(pair) || exposureState.asset;
+    updateActiveAssetLabel();
+    sendCommand({
+      action: 'UPDATE_SETTINGS',
+      settings: {
+        pairMexc: pair
+      }
+    });
+  }
+
+  let lastPath = '';
+  function startPairSync() {
+    const check = () => {
+      if (window.location.pathname !== lastPath) {
+        lastPath = window.location.pathname;
+        syncPairFromUrl();
+      }
+    };
+    check();
+    setInterval(check, 1000);
+  }
+
+  function extractMexcExposure() {
+    const exposureEl = document.querySelector(
+      '#mexc-web-inspection-futures-exchange-current-position > div.ant-table-wrapper.Position_positionTable__0FikK.Position_positionTableFixedColumn__HRSBx > div > div > div > div > div > table > tbody > tr.ant-table-row.ant-table-row-level-0 > td:nth-child(2) > span > span'
+    );
+    const priceEl = document.querySelector(
+      '#mexc-web-inspection-futures-exchange-current-position > div.ant-table-wrapper.Position_positionTable__0FikK.Position_positionTableFixedColumn__HRSBx > div > div > div > div > div > table > tbody > tr.ant-table-row.ant-table-row-level-0 > td:nth-child(3) > span'
+    );
+    const exposureStatus = document.getElementById('exposureStatus');
+    const rawText = exposureEl?.textContent?.trim() || 'n/d';
+    const rawPrice = priceEl?.textContent?.trim() || 'n/d';
+    if (exposureStatus) {
+      exposureStatus.dataset.base = `EXPOSIÇÃO: raw="${rawText}" avg="${rawPrice}"`;
+      exposureStatus.textContent = exposureStatus.dataset.base;
+    }
+    const { qty, asset } = parseTokenAmount(exposureEl?.textContent);
+    const avgPrice = parseLocaleNumber(priceEl?.textContent);
+    if (exposureStatus) {
+      exposureStatus.dataset.base = `EXPOSIÇÃO: raw="${rawText}" avg="${rawPrice}" parsedQty="${qty ?? 'n/d'}" asset="${asset ?? 'n/d'}"`;
+      exposureStatus.textContent = exposureStatus.dataset.base;
+    }
+    if (!Number.isFinite(qty) || !asset) return null;
+    return { qty, asset, avgPrice };
+  }
+
+  async function persistExposureSnapshot(exchange, asset, qty, avgPrice) {
+    if (!asset || !Number.isFinite(qty)) return;
+    const current = (await safeStorageGet('arbsync_exposure')) || {};
+    const exchangeData = current[exchange] || {};
+    exchangeData[asset] = {
+      qty,
+      avgPrice: Number.isFinite(avgPrice) ? avgPrice : null,
+      updatedAt: Date.now()
+    };
+    current[exchange] = exchangeData;
+    await safeStorageSet({ arbsync_exposure: current });
+  }
+
+  async function readExposureSnapshot() {
+    return (await safeStorageGet('arbsync_exposure')) || {};
+  }
+
+  function formatNumber(value, digits = 4) {
+    return Number.isFinite(value) ? value.toFixed(digits) : '--';
+  }
+
+  const executionLog = { open: null, close: null };
+
+  function updateExposurePanel(settings) {
+    const baseAsset = exposureState.asset || getAssetFromPair(latestPairs.mexc);
+    const updateLimitStatus = (gateQty, mexcQty) => {
+      const status = document.getElementById('limitStatus');
+      if (!status) return;
+      const perExchangeLimit = Number(settings.exposurePerExchange);
+      const perAssetLimit = Number(settings.exposurePerAsset);
+      const globalLimit = Number(settings.exposureGlobal);
+      const total = Math.abs(Number(gateQty) || 0) + Math.abs(Number(mexcQty) || 0);
+      const reasons = [];
+      if (
+        Number.isFinite(perExchangeLimit) &&
+        perExchangeLimit > 0 &&
+        Math.abs(Number(mexcQty) || 0) > perExchangeLimit
+      ) {
+        reasons.push('EXCHANGE');
+      }
+      if (
+        Number.isFinite(perAssetLimit) &&
+        perAssetLimit > 0 &&
+        total > perAssetLimit
+      ) {
+        reasons.push('ATIVO');
+      }
+      if (
+        Number.isFinite(globalLimit) &&
+        globalLimit > 0 &&
+        total > globalLimit
+      ) {
+        reasons.push('GLOBAL');
+      }
+      status.textContent =
+        reasons.length > 0
+          ? `LIMITES: ${reasons.join(', ')} atingido(s)`
+          : 'LIMITES: OK';
+    };
+    const renderWith = (
+      gateQty,
+      mexcQty,
+      gateAvg,
+      mexcAvg
+    ) => {
+      const formatQty = (value) =>
+        Number.isFinite(value)
+          ? value.toLocaleString('pt-BR', {
+              minimumFractionDigits: 2,
+              maximumFractionDigits: 2
+            })
+          : '--';
+      const formatAvg = (value) =>
+        Number.isFinite(value) ? value.toFixed(6) : '--';
+      const formatSpread = (value) =>
+        Number.isFinite(value) ? `${value.toFixed(3)}%` : '--';
+
+      const setQty = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const label = id === 'exposureGateQty' ? 'GATE' : 'MEXC';
+        el.textContent = `${label}: ${formatQty(value)}`;
+      };
+      const setAvg = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.textContent = `Médio: ${formatAvg(value)}`;
+      };
+      const setTotalSpread = (value) => {
+        const el = document.getElementById('exposureTotalSpread');
+        if (!el) return;
+        el.textContent = formatSpread(value);
+      };
+      const setPnl = (value) => {
+        const el = document.getElementById('exposurePnl');
+        if (!el) return;
+        el.textContent = Number.isFinite(value) ? value.toFixed(6) : '--';
+      };
+
+      setQty('exposureGateQty', gateQty);
+      setQty('exposureMexcQty', mexcQty);
+      setAvg('exposureGateAvg', gateAvg);
+      setAvg('exposureMexcAvg', mexcAvg);
+      const totalSpread =
+        Number.isFinite(gateAvg) && Number.isFinite(mexcAvg) && gateAvg > 0
+          ? ((mexcAvg - gateAvg) / gateAvg) * 100
+          : null;
+      setTotalSpread(totalSpread);
+      const matchedQty = Math.min(
+        Math.abs(Number(gateQty) || 0),
+        Math.abs(Number(mexcQty) || 0)
+      );
+      const pnl =
+        Number.isFinite(gateAvg) &&
+        Number.isFinite(mexcAvg) &&
+        Number.isFinite(matchedQty)
+          ? (mexcAvg - gateAvg) * matchedQty
+          : null;
+      setPnl(pnl);
+      updateLimitStatus(gateQty, mexcQty);
+    };
+
+    if (!baseAsset) {
+      renderWith(0, 0, null, null);
+      return;
+    }
+
+    readExposureSnapshot().then((snapshot) => {
+      const gate = snapshot.GATE || {};
+      const mexc = snapshot.MEXC || {};
+      const assetKey = baseAsset?.toUpperCase() || baseAsset;
+      const gateQty = Number(gate[assetKey]?.qty) || 0;
+      const mexcQty = Number(mexc[assetKey]?.qty) || 0;
+      let effectiveGateQty = gateQty;
+      let effectiveMexcQty = mexcQty;
+      let effectiveGateAvg = Number(gate[assetKey]?.avgPrice);
+      let effectiveMexcAvg = Number(mexc[assetKey]?.avgPrice);
+      if (gateQty === 0 && mexcQty === 0) {
+        const fallback = extractMexcExposure();
+        if (fallback) {
+          exposureState.asset = fallback.asset;
+          updateActiveAssetLabel();
+          effectiveMexcQty = fallback.qty;
+          effectiveMexcAvg = fallback.avgPrice;
+          persistExposureSnapshot(
+            EXCHANGE,
+            fallback.asset,
+            fallback.qty,
+            fallback.avgPrice
+          );
+        }
+      }
+      const gateAvg = effectiveGateAvg;
+      const mexcAvg = effectiveMexcAvg;
+      const exposureStatus = document.getElementById('exposureStatus');
+      if (exposureStatus) {
+        const base = exposureStatus.dataset.base || 'EXPOSIÇÃO: --';
+        const fallbackNote =
+          effectiveMexcQty !== mexcQty ? ` fallbackQty="${effectiveMexcQty}"` : '';
+        exposureStatus.textContent = `${base} storage[${assetKey}] gateQty="${gateQty}" mexcQty="${mexcQty}"${fallbackNote}`;
+      }
+      renderWith(effectiveGateQty, effectiveMexcQty, gateAvg, mexcAvg);
+    });
+  }
+
+  function updateActiveAssetLabel() {
+    const asset = exposureState.asset || getAssetFromPair(latestPairs.mexc);
+    const el = document.getElementById('activeAsset');
+    if (!el) return;
+    el.textContent = asset ? `(${asset})` : '--';
+  }
+
+  function updatePositionPanel(snapshot) {
+    if (!snapshot) return;
+    const { spotVolume, futuresContracts } = snapshot;
+    const spotEl = document.getElementById('positionSpotVolume');
+    const futuresEl = document.getElementById('positionFuturesContracts');
+    if (spotEl) spotEl.textContent = formatNumber(spotVolume, 4);
+    if (futuresEl) futuresEl.textContent = formatNumber(futuresContracts, 4);
+
+    const open = executionLog.open;
+    const close = executionLog.close;
+    const openGate = document.getElementById('openGatePrice');
+    const openMexc = document.getElementById('openMexcPrice');
+    const openVolume = document.getElementById('openVolume');
+    const openSpread = document.getElementById('openSpread');
+    const closeGate = document.getElementById('closeGatePrice');
+    const closeMexc = document.getElementById('closeMexcPrice');
+    const closeVolume = document.getElementById('closeVolume');
+    const closeSpread = document.getElementById('closeSpread');
+
+    if (openGate) openGate.textContent = formatNumber(open?.gatePrice, 11);
+    if (openMexc) openMexc.textContent = formatNumber(open?.mexcPrice, 11);
+    if (openVolume) openVolume.textContent = formatNumber(open?.spotVolume, 4);
+    if (openSpread) openSpread.textContent = formatNumber(open?.spread, 3) + '%';
+    if (closeGate) closeGate.textContent = formatNumber(close?.gatePrice, 11);
+    if (closeMexc) closeMexc.textContent = formatNumber(close?.mexcPrice, 11);
+    if (closeVolume) closeVolume.textContent = formatNumber(close?.spotVolume, 4);
+    if (closeSpread) closeSpread.textContent = formatNumber(close?.spread, 3) + '%';
+
+  }
+
+  function syncExecutionLog(payload) {
+    if (!payload) return;
+    if (payload.open) {
+      executionLog.open = payload.open;
+    }
+    if (payload.close) {
+      executionLog.close = payload.close;
+    }
+    updatePositionPanel(payload.snapshot || {});
+  }
+
+  function startExposurePolling() {
+    const poll = () => {
+      const exposure = extractMexcExposure();
+      const baseAsset = exposureState.asset || getAssetFromPair(latestPairs.mexc);
+      if (!exposure) {
+        if (!baseAsset) return;
+        persistExposureSnapshot(EXCHANGE, baseAsset, 0, null)
+          .then(() => updateExposurePanel(latestSettings));
+        return;
+      }
+      exposureState.asset = exposure.asset;
+      updateActiveAssetLabel();
+      persistExposureSnapshot(
+        EXCHANGE,
+        exposure.asset,
+        exposure.qty,
+        exposure.avgPrice
+      ).then(() => updateExposurePanel(latestSettings));
+    };
+    poll();
+    setInterval(poll, 3000);
+  }
+
   function startDomLiquidityPolling() {
     const selectors = {
       askPriceCandidates: [
@@ -524,6 +977,8 @@ console.log('🧩 content_mexc.js carregado');
     }
   });
 
+  
+
   window.addEventListener('message', (event) => {
     if (!event?.data || event.data.type !== 'ARBSYNC_ALERT') return;
     const testStatus = document.getElementById('testStatus');
@@ -559,24 +1014,44 @@ console.log('🧩 content_mexc.js carregado');
     if (msg.type === 'CORE_DATA') {
       const data = msg.data || {};
       const settings = data.settings || {};
+      latestSettings = settings;
+      updateActiveAssetLabel();
 
-      if (typeof data.askGate === 'number') setText('askGate', data.askGate.toFixed(11));
-      if (typeof data.bidMexc === 'number') setText('bidMexc', data.bidMexc.toFixed(11));
-      if (typeof data.spread === 'number') setText('spread', data.spread.toFixed(3) + '%');
+      const bestGateAsk = Number.isFinite(domBookCache.gate.askPrice)
+        ? domBookCache.gate.askPrice
+        : Number(data.askGate);
+      const bestGateBid = Number.isFinite(domBookCache.gate.bidPrice)
+        ? domBookCache.gate.bidPrice
+        : Number(data.bidGate);
+      const bestMexcBid = Number.isFinite(domBookCache.mexc.bidPrice)
+        ? domBookCache.mexc.bidPrice
+        : Number(data.bidMexc);
+      const bestMexcAsk = Number.isFinite(domBookCache.mexc.askPrice)
+        ? domBookCache.mexc.askPrice
+        : Number(data.askMexc);
+      const computedOpenSpread =
+        Number.isFinite(bestGateAsk) && Number.isFinite(bestMexcBid)
+          ? ((bestMexcBid - bestGateAsk) / bestGateAsk) * 100
+          : null;
+      if (Number.isFinite(bestGateAsk)) setText('askGate', bestGateAsk.toFixed(11));
+      if (Number.isFinite(bestMexcBid)) setText('bidMexc', bestMexcBid.toFixed(11));
+      if (Number.isFinite(computedOpenSpread)) {
+        setText('spread', computedOpenSpread.toFixed(3) + '%');
+      }
       const spreadOpen = document.getElementById('spreadOpen');
       const spreadClose = document.getElementById('spreadClose');
-      if (spreadOpen && typeof data.spread === 'number') {
-        spreadOpen.textContent = `${data.spread.toFixed(3)}%`;
-        spreadOpen.classList.toggle('positive', data.spread >= 0);
-        spreadOpen.classList.toggle('negative', data.spread < 0);
+      if (spreadOpen && Number.isFinite(computedOpenSpread)) {
+        spreadOpen.textContent = `${computedOpenSpread.toFixed(3)}%`;
+        spreadOpen.classList.toggle('positive', computedOpenSpread >= 0);
+        spreadOpen.classList.toggle('negative', computedOpenSpread < 0);
       }
       if (
         spreadClose &&
-        typeof data.bidGate === 'number' &&
-        typeof data.askMexc === 'number'
+        Number.isFinite(bestGateBid) &&
+        Number.isFinite(bestMexcAsk)
       ) {
         const closeSpread =
-          ((data.bidGate - data.askMexc) / data.askMexc) * 100;
+          ((bestGateBid - bestMexcAsk) / bestMexcAsk) * 100;
         spreadClose.textContent = `${closeSpread.toFixed(3)}%`;
         spreadClose.classList.toggle('positive', closeSpread >= 0);
         spreadClose.classList.toggle('negative', closeSpread < 0);
@@ -592,16 +1067,28 @@ console.log('🧩 content_mexc.js carregado');
       const gateBidPrice = document.getElementById('gateBidPrice');
       const mexcBidPrice = document.getElementById('mexcBidPrice');
       const mexcAskPrice = document.getElementById('mexcAskPrice');
-      const minLiquidity = Number(settings.minLiquidity);
-      const hasMinLiquidity = Number.isFinite(minLiquidity) && minLiquidity > 0;
+      const minLiquidityOpen = Number(
+        settings.minLiquidityOpen ?? settings.minLiquidity
+      );
+      const minLiquidityClose = Number(
+        settings.minLiquidityClose ?? settings.minLiquidity
+      );
       const formatLiquidity = (value) =>
         Number.isFinite(value) ? value.toFixed(4) : '--';
       const formatPrice = (value) =>
         Number.isFinite(value) ? value.toFixed(11) : '--';
-      const setLiquidityStatus = (el, label, leftSize, rightSize) => {
+      const setLiquidityStatus = (
+        el,
+        label,
+        leftSize,
+        rightSize,
+        minLiquidity,
+        leftPrice,
+        rightPrice
+      ) => {
         if (!el) return;
         el.classList.remove('positive', 'negative');
-        if (!hasMinLiquidity) {
+        if (!Number.isFinite(minLiquidity) || minLiquidity <= 0) {
           el.textContent = `LIQUIDEZ ${label}: sem mínimo`;
           return;
         }
@@ -610,9 +1097,19 @@ console.log('🧩 content_mexc.js carregado');
           return;
         }
         const enough = leftSize >= minLiquidity && rightSize >= minLiquidity;
+        const leftUsd =
+          Number.isFinite(leftPrice) && Number.isFinite(leftSize)
+            ? leftPrice * leftSize
+            : null;
+        const rightUsd =
+          Number.isFinite(rightPrice) && Number.isFinite(rightSize)
+            ? rightPrice * rightSize
+            : null;
+        const formatUsd = (value) =>
+          Number.isFinite(value) ? value.toFixed(2) : '--';
         el.textContent = `LIQUIDEZ ${label}: ${enough ? 'OK' : 'INSUFICIENTE'} (${formatLiquidity(
           leftSize
-        )}/${formatLiquidity(rightSize)})`;
+        )}/${formatLiquidity(rightSize)}) | ${formatUsd(leftUsd)}/${formatUsd(rightUsd)} USDT`;
         el.classList.add(enough ? 'positive' : 'negative');
       };
       const gateAskQty =
@@ -631,13 +1128,19 @@ console.log('🧩 content_mexc.js carregado');
         liquidityOpen,
         'ENTRADA',
         gateAskQty,
-        mexcBidQty
+        mexcBidQty,
+        minLiquidityOpen,
+        gateAskPx,
+        mexcBidPx
       );
       setLiquidityStatus(
         liquidityClose,
         'SAÍDA',
         gateBidQty,
-        mexcAskQty
+        mexcAskQty,
+        minLiquidityClose,
+        gateBidPx,
+        mexcAskPx
       );
       const domFresh = Date.now() - lastDomBookUpdate < 3000;
       if (!domFresh) {
@@ -667,27 +1170,12 @@ console.log('🧩 content_mexc.js carregado');
         }
       }
 
-      const riskStatus = document.getElementById('riskStatus');
-      if (riskStatus) {
-        const reasons = data.alert?.reasons?.length
-          ? data.alert.reasons.join(', ')
-          : 'OK';
-        riskStatus.textContent = `FILTROS: ${reasons}`;
-      }
-
       const testStatus = document.getElementById('testStatus');
       if (testStatus && data.lastTestExecution?.at) {
         const time = new Date(data.lastTestExecution.at).toLocaleTimeString();
         const volume = data.lastTestExecution.volume ?? '--';
         const status = data.lastTestExecution.status ?? 'PENDING';
         testStatus.textContent = `TESTE: ${volume} @ ${time} (${status})`;
-      }
-
-      const conversionStatus = document.getElementById('conversionStatus');
-      if (conversionStatus) {
-        const contracts = data.alert?.futuresContracts ?? 0;
-        conversionStatus.textContent = `FUTUROS: ${contracts.toFixed(4)} contratos`;
-        conversionStatus.dataset.contracts = String(contracts);
       }
 
       const syncStatus = document.getElementById('syncStatus');
@@ -709,18 +1197,19 @@ console.log('🧩 content_mexc.js carregado');
       };
 
       updateInput('spotVolume', settings.spotVolume);
-      updateInput('futuresContractSize', settings.futuresContractSize);
-      updateInput('spreadMin', settings.spreadMin);
-      updateInput('minVolume', settings.minVolume);
-      updateInput('minLiquidity', settings.minLiquidity);
+      updateInput('spreadMinOpen', settings.spreadMinOpen);
+      updateInput('spreadMinClose', settings.spreadMinClose);
+      updateInput('minLiquidityOpen', settings.minLiquidityOpen);
+      updateInput('minLiquidityClose', settings.minLiquidityClose);
+      updateInput('autoExecutionCooldownMs', settings.autoExecutionCooldownMs);
       updateInput('refreshIntervalMs', settings.refreshIntervalMs);
       updateInput('submitDelayMs', settings.submitDelayMs);
-      updateInput('slippageMax', settings.slippageMax);
-      updateInput('slippageEstimate', settings.slippageEstimate);
-      updateInput('maxAlertsPerMinute', settings.maxAlertsPerMinute);
       updateInput('exposurePerAsset', settings.exposurePerAsset);
       updateInput('exposurePerExchange', settings.exposurePerExchange);
       updateInput('exposureGlobal', settings.exposureGlobal);
+      updateInput('autoCloseProfitPercent', settings.autoCloseProfitPercent);
+      updateInput('autoCloseProfitUsdt', settings.autoCloseProfitUsdt);
+      updateInput('autoCloseMinutes', settings.autoCloseMinutes);
       updateInput('testVolume', settings.testVolume);
       const testBtn = document.getElementById('testBtn');
       if (testBtn) {
@@ -729,24 +1218,39 @@ console.log('🧩 content_mexc.js carregado');
       }
       latestPairs.gate = data.pairGate || latestPairs.gate;
       latestPairs.mexc = data.pairMexc || latestPairs.mexc;
-      const allowPartialInput = document.getElementById('allowPartialExecution');
-      if (allowPartialInput && allowPartialInput.dataset.userEdited !== 'true') {
-        allowPartialInput.checked = !!settings.allowPartialExecution;
-      }
-      const syncExecutionEnabled = document.getElementById('syncExecutionEnabled');
-      if (syncExecutionEnabled && syncExecutionEnabled.dataset.userEdited !== 'true') {
-        syncExecutionEnabled.checked = !!settings.syncTestExecution;
-      }
+      const applyCheckbox = (id, value) => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const desired = !!value;
+        if (el.dataset.userEdited === 'true') {
+          const editedAt = Number(el.dataset.userEditedAt || 0);
+          if (el.checked === desired) {
+            el.dataset.userEdited = '';
+            el.dataset.userEditedAt = '';
+          } else if (Date.now() - editedAt < 1500) {
+            return;
+          } else {
+            el.dataset.userEdited = '';
+            el.dataset.userEditedAt = '';
+          }
+        }
+        el.checked = desired;
+      };
+      applyCheckbox('allowPartialExecution', settings.allowPartialExecution);
+      applyCheckbox('enableLiveExecution', settings.enableLiveExecution);
+      applyCheckbox('syncExecutionEnabled', settings.syncTestExecution);
+      applyCheckbox('limitToTopLiquidity', settings.limitToTopLiquidity);
+      applyCheckbox('enableAutoRebalance', settings.enableAutoRebalance);
       if (settings.executionModes) {
-        const openEnabled = document.getElementById('openEnabled');
-        const closeEnabled = document.getElementById('closeEnabled');
-        if (openEnabled && openEnabled.dataset.userEdited !== 'true') {
-          openEnabled.checked = !!settings.executionModes.openEnabled;
-        }
-        if (closeEnabled && closeEnabled.dataset.userEdited !== 'true') {
-          closeEnabled.checked = !!settings.executionModes.closeEnabled;
-        }
+        applyCheckbox('openEnabled', settings.executionModes.openEnabled);
+        applyCheckbox('closeEnabled', settings.executionModes.closeEnabled);
       }
+
+      updatePositionPanel({
+        spotVolume: Number(settings.spotVolume),
+        futuresContracts: Number(settings.spotVolume)
+      });
+      updateExposurePanel(settings);
     }
 
     if (msg.type === 'DOM_BOOK' && msg.payload?.source === 'gate') {
@@ -780,6 +1284,10 @@ console.log('🧩 content_mexc.js carregado');
         lastDomBookUpdate = Date.now();
         domBookCache.gate.bidVolume = bidVolume;
       }
+    }
+
+    if (msg.type === 'EXECUTION_LOG') {
+      syncExecutionLog(msg.payload);
     }
   });
 })();

@@ -14,26 +14,31 @@ export default {
   alert: null,
   lastTestExecution: null,
   settings: {
-    spreadMin: null,
-    minVolume: null,
-    minLiquidity: null,
+    spreadMinOpen: null,
+    spreadMinClose: null,
+    minLiquidityOpen: null,
+    minLiquidityClose: null,
     refreshIntervalMs: 1,
     submitDelayMs: 1,
-    slippageMax: null,
-    maxAlertsPerMinute: null,
-    futuresContractSize: null,
     allowPartialExecution: false,
     exposurePerAsset: null,
     exposurePerExchange: null,
     exposureGlobal: null,
     spotVolume: null,
     testVolume: null,
-    slippageEstimate: null,
     enableLiveExecution: false,
+    autoExecutionCooldownMs: null,
+    autoCloseProfitPercent: null,
+    autoCloseProfitUsdt: null,
+    autoCloseMinutes: null,
+    limitToTopLiquidity: false,
+    enableAutoRebalance: false,
     syncTestExecution: false,
     executionModes: {
       openEnabled: true,
       closeEnabled: false
-    }
+    },
+    pairGate: null,
+    pairMexc: null
   }
 };

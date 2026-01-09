@@ -3,6 +3,7 @@
 let ws = null;
 let reconnectTimer = null;
 const tabLinks = new Map();
+let coreStatusOk = false;
 
 function normalizeGroup(group) {
   return String(group || '').trim();
@@ -70,6 +71,7 @@ function connectWs() {
 
     ws.onopen = async () => {
       console.log('🟢 [BG] Conectado ao CORE ws://localhost:8787');
+      coreStatusOk = true;
       await broadcastToTargetTabs({ type: 'CORE_STATUS', ok: true });
     };
 
@@ -85,12 +87,14 @@ function connectWs() {
 
     ws.onclose = async () => {
       console.log('⚠️ [BG] WS do CORE fechado. Reconectando em 2s...');
+      coreStatusOk = false;
       await broadcastToTargetTabs({ type: 'CORE_STATUS', ok: false });
       reconnectTimer = setTimeout(connectWs, 2000);
     };
 
     ws.onerror = async () => {
       console.log('❌ [BG] Erro no WS do CORE. Reconectando em 2s...');
+      coreStatusOk = false;
       await broadcastToTargetTabs({ type: 'CORE_STATUS', ok: false });
 
       try { ws.close(); } catch {}
@@ -150,6 +154,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
+  if (message.type === 'REQUEST_CORE_STATUS') {
+    sendResponse({ ok: coreStatusOk });
+    return;
+  }
+
   if (message.type === 'SYNC_TEST_EXECUTION') {
     const group = normalizeGroup(message.group);
     const status = getGroupStatus(group);
@@ -183,8 +192,50 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return;
   }
 
+  if (message.type === 'SYNC_LIVE_EXECUTION') {
+    const group = normalizeGroup(message.group);
+    const status = getGroupStatus(group);
+    const payload = message.payload || {};
+    const targetTabs = new Set();
+    if (group) {
+      status.gateTabs.forEach((tabId) => targetTabs.add(tabId));
+      status.mexcTabs.forEach((tabId) => targetTabs.add(tabId));
+    } else if (sender.tab?.id) {
+      targetTabs.add(sender.tab.id);
+    }
+
+    if (!group) {
+      for (const tabId of targetTabs) {
+        chrome.tabs.sendMessage(tabId, {
+          type: 'RUN_TEST_EXECUTION',
+          payload
+        }).catch(() => {
+          // Ignore missing content scripts
+        });
+      }
+      sendResponse({ ok: true, status });
+      return;
+    }
+
+    for (const tabId of targetTabs) {
+      chrome.tabs.sendMessage(tabId, {
+        type: 'RUN_TEST_EXECUTION',
+        payload
+      }).catch(() => {
+        // Ignore missing content scripts
+      });
+    }
+    sendResponse({ ok: true, status });
+    return;
+  }
+
   if (message.type === 'DOM_BOOK') {
     broadcastToTargetTabs({ type: 'DOM_BOOK', payload: message.payload });
+    sendResponse({ ok: true });
+  }
+
+  if (message.type === 'EXECUTION_LOG') {
+    broadcastToTargetTabs({ type: 'EXECUTION_LOG', payload: message.payload });
     sendResponse({ ok: true });
   }
 });

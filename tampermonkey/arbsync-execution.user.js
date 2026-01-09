@@ -124,47 +124,35 @@
       );
     };
 
-    let buyMatch = findGateMatch(actionLabel);
-    let sellMatch = findGateMatch(closeLabel);
-    let finalAction = null;
-
-    if (needsBuy && !buyMatch) {
-      await activateGateTab('buy');
-      buyMatch = findGateMatch(actionLabel);
+    const actions = [];
+    if (needsBuy) {
+      actions.push({ tab: 'buy', labels: actionLabel, alert: 'Compra' });
     }
-    if (needsSell && !sellMatch) {
-      await activateGateTab('sell');
-      sellMatch = findGateMatch(closeLabel);
+    if (needsSell) {
+      actions.push({ tab: 'sell', labels: closeLabel, alert: 'Venda' });
     }
 
-    if (needsBuy && buyMatch) {
-      finalAction = { tab: 'buy', button: buyMatch, label: 'Compra' };
-    } else if (needsSell && sellMatch) {
-      finalAction = { tab: 'sell', button: sellMatch, label: 'Venda' };
-    }
-
-    if (!finalAction) {
-      if (needsBuy) sendAlert('Não encontrei "Compra". Verifique os botões da Gate.');
-      if (needsSell) sendAlert('Não encontrei "Venda". Verifique os botões da Gate.');
+    if (actions.length === 0) {
       return;
     }
 
-    await activateGateTab(finalAction.tab);
-    const refreshedAction = findGateMatch(
-      finalAction.tab === 'buy' ? actionLabel : closeLabel
-    );
-    if (refreshedAction) {
-      finalAction.button = refreshedAction;
+    for (const action of actions) {
+      await activateGateTab(action.tab);
+      const actionButton = findGateMatch(action.labels);
+      if (!actionButton) {
+        sendAlert(`Não encontrei "${action.alert}". Verifique os botões da Gate.`);
+        continue;
+      }
+      const refreshedQtyInput = getQtyInput();
+      if (!refreshedQtyInput) {
+        sendAlert('Não encontrei o campo Quantia na Gate.');
+        return;
+      }
+      setNativeValue(refreshedQtyInput, formatGateQuantity(volume));
+      dispatchInputEvents(refreshedQtyInput);
+      await delay(submitDelay);
+      actionButton.click();
     }
-    const refreshedQtyInput = getQtyInput();
-    if (!refreshedQtyInput) {
-      sendAlert('Não encontrei o campo Quantia na Gate.');
-      return;
-    }
-    setNativeValue(refreshedQtyInput, String(volume));
-    dispatchInputEvents(refreshedQtyInput);
-    await delay(submitDelay);
-    finalAction.button.click();
   }
 
   async function executeMexcFutures(contracts, context = {}) {
@@ -173,10 +161,69 @@
       return;
     }
 
-    const getQtyInput = () =>
-      document.querySelector(
-        '#mexc_contract_v_open_position > div > div.component_inputWrapper__LP4Dm > div.component_numberInput__PF7Vf > div > div.InputNumberHandle_inputOuterWrapper__8w_l1 > div > div > input, input[placeholder*="Quantidade"], input[placeholder*="Qty"]'
+    const getQtyInput = (mode = 'open') => {
+      const scopeSelectors = mode === 'close'
+        ? [
+            '#mexc_contract_v_close_position',
+            '#mexc_contract_v_close_position_info_login',
+            '[data-testid*="close"]'
+          ]
+        : [
+            '#mexc_contract_v_open_position',
+            '#mexc_contract_v_open_position_info_login',
+            '[data-testid*="open"]'
+          ];
+      for (const scopeSelector of scopeSelectors) {
+        const scope = document.querySelector(scopeSelector);
+        if (!scope) continue;
+        const input =
+          scope.querySelector('input[placeholder*="Quantidade"]') ||
+          scope.querySelector('input[placeholder*="Qty"]') ||
+          scope.querySelector('input[type="text"]') ||
+          scope.querySelector('input[type="number"]');
+        if (input) return input;
+      }
+      const fallbackSelectors = [
+        '#mexc_contract_v_open_position input[placeholder*="Quantidade"]',
+        '#mexc_contract_v_open_position input[placeholder*="Qty"]',
+        '#mexc_contract_v_open_position input[type="text"]',
+        '#mexc_contract_v_open_position input[type="number"]',
+        '#mexc_contract_v_close_position input[placeholder*="Quantidade"]',
+        '#mexc_contract_v_close_position input[placeholder*="Qty"]',
+        '#mexc_contract_v_close_position input[type="text"]',
+        '#mexc_contract_v_close_position input[type="number"]',
+        'input[placeholder*="Quantidade"]',
+        'input[placeholder*="Qty"]'
+      ];
+      for (const selector of fallbackSelectors) {
+        const input = document.querySelector(selector);
+        if (input) return input;
+      }
+      return null;
+    };
+    const findCloseQtyInput = () => {
+      const form = document.querySelector('[data-testid="contract-trade-order-form"]');
+      const root = form || document.querySelector('#mexc-web-handle-content-wrapper-v');
+      if (!root) return null;
+      const closeButton =
+        root.querySelector('button[data-testid="contract-trade-close-short-btn"]') ||
+        document.querySelector(
+          '#mexc-web-handle-content-wrapper-v > div:nth-child(2) > div > div > div.component_inputWrapper__LP4Dm > div:nth-child(3) > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_longBtn__eazYU.component_withColor__LqLhs'
+        );
+      if (closeButton) {
+        const container = closeButton.closest('section') || closeButton.closest('div');
+        const scopedInput = container?.querySelector(
+          'input[type="text"], input[type="number"]'
+        );
+        if (scopedInput) {
+          return scopedInput;
+        }
+      }
+      const inputs = Array.from(
+        root.querySelectorAll('input[type="text"], input[type="number"]')
       );
+      return inputs[inputs.length - 1] || null;
+    };
     const findSellButton = () =>
       document.querySelector(
         'button[data-testid="contract-trade-open-short-btn"]'
@@ -185,31 +232,90 @@
         ['Abrir Short', 'Short', 'Abrir'],
         '#mexc_contract_v_open_position_info_login'
       );
-    const findCloseButton = () =>
-      document.querySelector(
-        'button[data-testid="contract-trade-close-short-btn"]'
-      ) ||
-      findButtonByText(
-        ['Fechar Short', 'Fechar Long', 'Fechar'],
-        '#mexc_contract_v_open_position_info_login'
-      );
+    const findCloseButton = () => {
+      const candidates = [
+        document.querySelector(
+          '#mexc-web-handle-content-wrapper-v > div:nth-child(2) > div > div > div.component_inputWrapper__LP4Dm > div:nth-child(3) > section > div > div:nth-child(1) > div > button.ant-btn-v2.ant-btn-v2-tertiary.ant-btn-v2-md.component_longBtn__eazYU.component_withColor__LqLhs'
+        ),
+        ...Array.from(
+          document.querySelectorAll(
+            'button[data-testid="contract-trade-close-short-btn"]'
+          )
+        ),
+        findButtonByText(
+          ['Fechar Short', 'Fechar Long', 'Fechar'],
+          '#mexc_contract_v_open_position_info_login'
+        )
+      ].filter(Boolean);
+      return candidates.find((btn) => btn.offsetParent !== null) || candidates[0];
+    };
 
-    const setContracts = () => {
-      const qtyInput = getQtyInput();
+    const ensureCloseByQuantity = () => {
+      const closeButton = findCloseButton();
+      const scope = closeButton?.closest('[data-testid="contract-trade-order-form"]')
+        || document.querySelector('#mexc_contract_v_close_position')
+        || document.querySelector('#mexc-web-handle-content-wrapper-v');
+      if (!scope) return;
+      const percentButtons = Array.from(
+        scope.querySelectorAll('button, span, div')
+      ).filter((el) =>
+        ['%', 'Porcentagem', 'Percent', '100%'].some((label) =>
+          el.textContent?.trim().includes(label)
+        )
+      );
+      percentButtons.forEach((el) => {
+        if (el.getAttribute('aria-pressed') === 'true') {
+          el.click();
+        }
+      });
+      const zeroPercent = Array.from(
+        scope.querySelectorAll('button, span, div')
+      ).find((el) => el.textContent?.trim() === '0%');
+      zeroPercent?.click();
+      const closeAllToggle = Array.from(
+        scope.querySelectorAll('input[type="checkbox"]')
+      ).find((input) => {
+        const label = input.closest('label')?.textContent || '';
+        return /fechar tudo|close all|all/i.test(label);
+      });
+      if (closeAllToggle?.checked) {
+        closeAllToggle.click();
+      }
+    };
+
+    const setContracts = (mode) => {
+      const qtyInput = mode === 'close' ? findCloseQtyInput() : getQtyInput(mode);
       if (!qtyInput) return null;
       setNativeValue(qtyInput, String(contracts));
       dispatchInputEvents(qtyInput);
+      const parseQty = (value) => {
+        if (value == null) return null;
+        const cleaned = String(value).replace(/\s+/g, '').replace(',', '.');
+        const parsed = Number(cleaned.replace(/[^\d.-]/g, ''));
+        return Number.isFinite(parsed) ? parsed : null;
+      };
+      const parsedInput = parseQty(qtyInput.value);
+      if (mode === 'close' && Number.isFinite(parsedInput)) {
+        const expected = Number(contracts);
+        if (Number.isFinite(expected) && Math.abs(parsedInput - expected) > 0.0001) {
+          sendAlert(`Quantidade divergente na MEXC (input="${qtyInput.value}"). Abortando.`);
+          return null;
+        }
+      }
       return qtyInput;
     };
 
-    if (!getQtyInput()) {
+    if (!getQtyInput('open') && !getQtyInput('close')) {
       console.warn('[ArbiSync] Ajuste os seletores MEXC FUTUROS');
       return;
     }
 
     if (context.modes?.openEnabled) {
       await activateMexcTab('open');
-      setContracts();
+      if (!setContracts('open')) {
+        sendAlert('Não encontrei o campo Quantidade na aba Abrir da MEXC.');
+        return;
+      }
       const sellButton = findSellButton();
       if (sellButton) {
         sellButton.click();
@@ -219,7 +325,11 @@
     }
     if (context.modes?.closeEnabled) {
       await activateMexcTab('close');
-      setContracts();
+      ensureCloseByQuantity();
+      if (!setContracts('close')) {
+        sendAlert('Não encontrei o campo Quantidade na aba Fechar da MEXC.');
+        return;
+      }
       const closeButton = findCloseButton();
       if (closeButton) {
         closeButton.click();
@@ -243,6 +353,16 @@
     } else {
       element.value = value;
     }
+  }
+
+  function formatGateQuantity(value) {
+    if (!Number.isFinite(value)) return '';
+    return value
+      .toLocaleString('pt-BR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 8
+      })
+      .replace(/\./g, '');
   }
 
   function dispatchInputEvents(element) {
@@ -307,7 +427,11 @@
   }
 
   function findMexcTab(labels) {
-    const tabs = Array.from(document.querySelectorAll('[role="tab"], button'));
+    const tabs = Array.from(
+      document.querySelectorAll(
+        '[data-testid="contract-trade-order-form-tab-open"], [data-testid="contract-trade-order-form-tab-close"], [role="tab"], button'
+      )
+    );
     return tabs.find((tab) => {
       if (!isTabButton(tab)) return false;
       return labels.some((label) => tab.textContent?.trim().includes(label));
@@ -318,7 +442,12 @@
     const labels = tab === 'close'
       ? ['Fechar', 'Close']
       : ['Abrir', 'Open'];
-    const button = findMexcTab(labels);
+    const button =
+      document.querySelector(
+        tab === 'close'
+          ? '[data-testid="contract-trade-order-form-tab-close"]'
+          : '[data-testid="contract-trade-order-form-tab-open"]'
+      ) || findMexcTab(labels);
     if (button) {
       button.click();
       await waitForMexcTab(button);

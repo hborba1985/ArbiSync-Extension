@@ -1720,13 +1720,16 @@ console.log('🧩 content_gate.js carregado');
           }
           if (shouldAutoClose) {
             const selectedVolume = closeTopVolume;
-            const gateAvailable = Number(exposureState.gateQty);
-            const gateSpotVolume =
-              Number.isFinite(gateAvailable) &&
-              gateAvailable > 0 &&
-              gateAvailable < selectedVolume
-                ? gateAvailable
-                : selectedVolume;
+            const gateAvailable = Math.abs(Number(exposureState.gateQty) || 0);
+            const minGateReserveTokens =
+              Number.isFinite(gateBidPx) && gateBidPx > 0
+                ? MIN_GATE_ORDER_USDT / gateBidPx
+                : 0;
+            const maxClosable =
+              Number.isFinite(minGateReserveTokens) && minGateReserveTokens > 0
+                ? Math.max(gateAvailable - minGateReserveTokens, 0)
+                : gateAvailable;
+            const gateSpotVolume = Math.min(selectedVolume, maxClosable);
             const closeContracts = Math.min(gateSpotVolume, closePositionQty);
             const normalizedVolume = floorToStep(
               closeContracts,
@@ -1734,7 +1737,7 @@ console.log('🧩 content_gate.js carregado');
             );
             if (normalizedVolume <= 0) {
               broadcastLogEntry(
-                `Ordem CLOSE ignorada: volume abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens.`,
+                `Ordem CLOSE ignorada: volume abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens ou reserva mínima na Gate.`,
                 'warn'
               );
             } else if (!isGateNotionalOk(normalizedVolume, gateBidPx)) {
@@ -1746,6 +1749,20 @@ console.log('🧩 content_gate.js carregado');
                 'warn'
               );
             } else {
+              const remainingAfterClose = gateAvailable - normalizedVolume;
+              if (
+                Number.isFinite(minGateReserveTokens) &&
+                minGateReserveTokens > 0 &&
+                remainingAfterClose < minGateReserveTokens
+              ) {
+                broadcastLogEntry(
+                  `Ordem CLOSE ajustada para manter reserva mínima na Gate (${formatNumber(
+                    minGateReserveTokens,
+                    4
+                  )} tokens).`,
+                  'info'
+                );
+              }
               const logPayload = {
                 open: null,
                 close: {

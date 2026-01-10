@@ -8,6 +8,8 @@ console.log('🧩 content_mexc.js carregado');
   const GROUP_STORAGE_KEY = 'arbsync_group';
   const logEntries = [];
   const LOG_MAX_ENTRIES = 200;
+  const LOG_THROTTLE_MS = 2000;
+  const lastLogByMessage = new Map();
   let lastDomBookUpdate = 0;
   const domBookCache = {
     gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
@@ -156,16 +158,23 @@ console.log('🧩 content_mexc.js carregado');
     const item = document.createElement('div');
     item.className = `log-entry ${entry.level ? `is-${entry.level}` : ''}`.trim();
     item.innerHTML = `<span class="log-time">${timeLabel}</span><span class="log-message">${entry.message}</span>`;
-    list.appendChild(item);
+    list.insertBefore(item, list.firstChild);
     logEntries.push(entry);
     while (logEntries.length > LOG_MAX_ENTRIES) {
       logEntries.shift();
-      list.removeChild(list.firstChild);
+      list.removeChild(list.lastChild);
     }
     updateLogEmptyState();
   }
 
   function broadcastLogEntry(message, level = 'info') {
+    if (!message) return;
+    const now = Date.now();
+    const lastAt = lastLogByMessage.get(message);
+    if (Number.isFinite(lastAt) && now - lastAt < LOG_THROTTLE_MS) {
+      return;
+    }
+    lastLogByMessage.set(message, now);
     const entry = {
       message,
       level,

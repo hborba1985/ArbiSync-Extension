@@ -14,6 +14,8 @@ console.log('🧩 content_gate.js carregado');
   const executionLog = { open: null, close: null };
   const logEntries = [];
   const LOG_MAX_ENTRIES = 200;
+  const LOG_THROTTLE_MS = 2000;
+  const lastLogByMessage = new Map();
   const domBookCache = {
     gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
     mexc: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null }
@@ -169,16 +171,23 @@ console.log('🧩 content_gate.js carregado');
     const item = document.createElement('div');
     item.className = `log-entry ${entry.level ? `is-${entry.level}` : ''}`.trim();
     item.innerHTML = `<span class="log-time">${timeLabel}</span><span class="log-message">${entry.message}</span>`;
-    list.appendChild(item);
+    list.insertBefore(item, list.firstChild);
     logEntries.push(entry);
     while (logEntries.length > LOG_MAX_ENTRIES) {
       logEntries.shift();
-      list.removeChild(list.firstChild);
+      list.removeChild(list.lastChild);
     }
     updateLogEmptyState();
   }
 
   function broadcastLogEntry(message, level = 'info') {
+    if (!message) return;
+    const now = Date.now();
+    const lastAt = lastLogByMessage.get(message);
+    if (Number.isFinite(lastAt) && now - lastAt < LOG_THROTTLE_MS) {
+      return;
+    }
+    lastLogByMessage.set(message, now);
     const entry = {
       message,
       level,
@@ -568,6 +577,30 @@ console.log('🧩 content_gate.js carregado');
   function isGateNotionalOk(volume, price) {
     if (!Number.isFinite(volume) || !Number.isFinite(price)) return false;
     return volume * price >= MIN_GATE_ORDER_USDT;
+  }
+
+  function formatTokenQtyForLog(value) {
+    if (!Number.isFinite(value)) return '--';
+    const floored = Math.floor(value);
+    return floored.toLocaleString('pt-BR');
+  }
+
+  function buildOpenDecisionReason(useTopLiquidity, gateAskQty, mexcBidQty) {
+    if (!useTopLiquidity) {
+      return 'Compra baseada no volume configurado.';
+    }
+    return `Compra baseada no menor volume do 1º nível (Gate ${formatTokenQtyForLog(
+      gateAskQty
+    )} x MEXC ${formatTokenQtyForLog(mexcBidQty)}).`;
+  }
+
+  function buildCloseDecisionReason(useTopLiquidity, gateBidQty, mexcAskQty) {
+    if (!useTopLiquidity) {
+      return 'Fechamento baseado no volume configurado.';
+    }
+    return `Fechamento baseado no menor volume do 1º nível (Gate ${formatTokenQtyForLog(
+      gateBidQty
+    )} x MEXC ${formatTokenQtyForLog(mexcAskQty)}).`;
   }
 
   function parseNumber(value) {
@@ -1522,16 +1555,15 @@ console.log('🧩 content_gate.js carregado');
           const deltaVolume = Math.abs(rebalanceDelta);
           if (!rebalanceCooldownOk) {
             broadcastLogEntry(
-              `Auto-rebalance aguardando cooldown. Diferença atual: ${formatNumber(deltaVolume, 4)} tokens.`,
+              `Auto-rebalance aguardando cooldown. Diferença atual: ${formatTokenQtyForLog(deltaVolume)} tokens.`,
               'warn'
             );
             rebalanceHandled = true;
           } else if (targetExchange === 'GATE') {
             if (!isGateNotionalOk(deltaVolume, gateAskPx)) {
               broadcastLogEntry(
-                `Auto-rebalance ignorado: ordem na Gate abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatNumber(
-                  deltaVolume,
-                  4
+                `Auto-rebalance ignorado: ordem na Gate abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatTokenQtyForLog(
+                  deltaVolume
                 )} tokens).`,
                 'warn'
               );
@@ -1552,9 +1584,8 @@ console.log('🧩 content_gate.js carregado');
                 document.getElementById('arbGroup')?.value || currentGroup
               );
               broadcastLogEntry(
-                `Auto-rebalance: comprando ${formatNumber(
-                  deltaVolume,
-                  4
+                `Auto-rebalance: comprando ${formatTokenQtyForLog(
+                  deltaVolume
                 )} tokens na Gate para igualar a MEXC.`,
                 'success'
               );
@@ -1593,9 +1624,8 @@ console.log('🧩 content_gate.js carregado');
                 document.getElementById('arbGroup')?.value || currentGroup
               );
               broadcastLogEntry(
-                `Auto-rebalance: abrindo ${formatNumber(
-                  normalizedVolume,
-                  4
+                `Auto-rebalance: abrindo ${formatTokenQtyForLog(
+                  normalizedVolume
                 )} contratos na MEXC para igualar a Gate.`,
                 'success'
               );
@@ -1667,13 +1697,23 @@ console.log('🧩 content_gate.js carregado');
               );
             } else if (!isGateNotionalOk(normalizedVolume, gateAskPx)) {
               broadcastLogEntry(
-                `Ordem OPEN ignorada: valor abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatNumber(
-                  normalizedVolume,
-                  4
+                `Ordem OPEN ignorada: valor abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatTokenQtyForLog(
+                  normalizedVolume
                 )} tokens).`,
                 'warn'
               );
             } else {
+              const reason = buildOpenDecisionReason(
+                useTopLiquidity,
+                gateAskQty,
+                mexcBidQty
+              );
+              broadcastLogEntry(
+                `Compra de ${formatTokenQtyForLog(
+                  normalizedVolume
+                )} tokens: ${reason}`,
+                'info'
+              );
               const logPayload = {
                 open: {
                   gatePrice: gateAskPx,
@@ -1706,9 +1746,8 @@ console.log('🧩 content_gate.js carregado');
                 document.getElementById('arbGroup')?.value || currentGroup
               );
               broadcastLogEntry(
-                `Ordem OPEN enviada: ${formatNumber(
-                  normalizedVolume,
-                  4
+                `Ordem OPEN enviada: ${formatTokenQtyForLog(
+                  normalizedVolume
                 )} tokens (Gate @ ${formatNumber(
                   gateAskPx,
                   6
@@ -1765,9 +1804,8 @@ console.log('🧩 content_gate.js carregado');
             ) {
               normalizedVolume = closeContracts;
               broadcastLogEntry(
-                `Ordem CLOSE ajustada para limpar residual na Gate (${formatNumber(
-                  closeContracts,
-                  4
+                `Ordem CLOSE ajustada para limpar residual na Gate (${formatTokenQtyForLog(
+                  closeContracts
                 )} tokens).`,
                 'info'
               );
@@ -1779,13 +1817,23 @@ console.log('🧩 content_gate.js carregado');
               );
             } else if (!isGateNotionalOk(normalizedVolume, gateBidPx)) {
               broadcastLogEntry(
-                `Ordem CLOSE ignorada: valor abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatNumber(
-                  normalizedVolume,
-                  4
+                `Ordem CLOSE ignorada: valor abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatTokenQtyForLog(
+                  normalizedVolume
                 )} tokens).`,
                 'warn'
               );
             } else {
+              const reason = buildCloseDecisionReason(
+                useTopLiquidity,
+                gateBidQty,
+                mexcAskQty
+              );
+              broadcastLogEntry(
+                `Fechamento de ${formatTokenQtyForLog(
+                  normalizedVolume
+                )} tokens: ${reason}`,
+                'info'
+              );
               const remainingAfterClose = gateAvailable - normalizedVolume;
               if (
                 Number.isFinite(minGateReserveTokens) &&
@@ -1793,9 +1841,8 @@ console.log('🧩 content_gate.js carregado');
                 remainingAfterClose < minGateReserveTokens
               ) {
                 broadcastLogEntry(
-                  `Ordem CLOSE ajustada para manter reserva mínima na Gate (${formatNumber(
-                    minGateReserveTokens,
-                    4
+                  `Ordem CLOSE ajustada para manter reserva mínima na Gate (${formatTokenQtyForLog(
+                    minGateReserveTokens
                   )} tokens).`,
                   'info'
                 );

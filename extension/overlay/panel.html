@@ -3,6 +3,12 @@
     <div class="title">ARBITRAGEM DETECTADA <span id="activeAsset">--</span></div>
     <button class="panel-close" id="minimizeOverlayBtn" type="button" aria-label="Minimizar overlay">✕</button>
   </div>
+  <div class="panel-tabs" role="tablist" aria-label="Navegação do painel">
+    <button class="panel-tab is-active" type="button" data-tab-target="trading">TRADING</button>
+    <button class="panel-tab" type="button" data-tab-target="log">LOG</button>
+  </div>
+  <div class="panel-tab-contents">
+    <div class="panel-tab-content is-active" data-tab-content="trading">
 
   <div class="section-title">Painel da posição</div>
   <div class="position-summary">
@@ -276,6 +282,14 @@
       <div class="status" id="testStatus">TESTE: --</div>
     </div>
   </details>
+    </div>
+    <div class="panel-tab-content" data-tab-content="log">
+      <div class="log-panel">
+        <div class="log-empty" id="arb-log-empty">Nenhum log registrado ainda.</div>
+        <div class="log-list" id="arb-log-list" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
   <div class="resizer" aria-hidden="true"></div>
 </div>
 <button id="arb-minimized-toggle" class="arb-minimized-toggle" aria-label="Mostrar overlay">ARB</button>

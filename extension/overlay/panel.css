@@ -55,6 +55,50 @@
   background: rgba(255, 90, 90, 0.35);
 }
 
+#arb-panel .panel-tabs {
+  display: flex;
+  gap: 8px;
+  margin: 6px 0 8px;
+  background: rgba(255,255,255,0.06);
+  padding: 6px;
+  border-radius: 12px;
+  position: sticky;
+  top: 44px;
+  z-index: 4;
+}
+
+#arb-panel .panel-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.7);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  padding: 6px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+#arb-panel .panel-tab.is-active {
+  background: rgba(109,93,252,0.35);
+  color: #fff;
+}
+
+#arb-panel .panel-tab-contents {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+#arb-panel .panel-tab-content {
+  display: none;
+}
+
+#arb-panel .panel-tab-content.is-active {
+  display: block;
+}
+
 #arb-panel.signal {
   box-shadow: 0 0 0 2px rgba(109,93,252,0.6), 0 10px 30px rgba(0,0,0,0.35);
 }
@@ -425,6 +469,64 @@
 #arb-panel button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+#arb-panel .log-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 12px;
+  max-height: 320px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+#arb-panel .log-empty {
+  opacity: 0.7;
+  font-size: 12px;
+  text-align: center;
+  padding: 12px 8px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+}
+
+#arb-panel .log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+#arb-panel .log-entry {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  align-items: start;
+}
+
+#arb-panel .log-entry .log-time {
+  font-size: 10px;
+  opacity: 0.6;
+  white-space: nowrap;
+}
+
+#arb-panel .log-entry .log-message {
+  font-size: 12px;
+  line-height: 1.3;
+}
+
+#arb-panel .log-entry.is-warn {
+  border-left: 3px solid #ffd166;
+}
+
+#arb-panel .log-entry.is-error {
+  border-left: 3px solid #ff6b6b;
+}
+
+#arb-panel .log-entry.is-success {
+  border-left: 3px solid #6dffb3;
 }
 
 #arb-panel .resizer {

@@ -1733,19 +1733,25 @@ console.log('🧩 content_gate.js carregado');
               Number.isFinite(gateBidPx) && gateBidPx > 0
                 ? MIN_GATE_ORDER_USDT / gateBidPx
                 : 0;
-            const maxClosable =
-              Number.isFinite(minGateReserveTokens) && minGateReserveTokens > 0
-                ? Math.max(gateAvailable - minGateReserveTokens, 0)
-                : gateAvailable;
-            const gateSpotVolume = Math.min(selectedVolume, maxClosable);
-            if (gateSpotVolume < selectedVolume && maxClosable >= 0) {
-              broadcastLogEntry(
-                `Ordem CLOSE limitada pela reserva mínima da Gate (${formatNumber(
-                  minGateReserveTokens,
-                  4
-                )} tokens).`,
-                'info'
-              );
+            let gateSpotVolume;
+            const wantsFullClose = selectedVolume >= gateAvailable;
+            if (wantsFullClose && isGateNotionalOk(gateAvailable, gateBidPx)) {
+              gateSpotVolume = gateAvailable;
+            } else {
+              const maxClosable =
+                Number.isFinite(minGateReserveTokens) && minGateReserveTokens > 0
+                  ? Math.max(gateAvailable - minGateReserveTokens, 0)
+                  : gateAvailable;
+              gateSpotVolume = Math.min(selectedVolume, maxClosable);
+              if (gateSpotVolume < selectedVolume && maxClosable >= 0) {
+                broadcastLogEntry(
+                  `Ordem CLOSE limitada pela reserva mínima da Gate (${formatNumber(
+                    minGateReserveTokens,
+                    4
+                  )} tokens).`,
+                  'info'
+                );
+              }
             }
             const closeContracts = Math.min(gateSpotVolume, closePositionQty);
             const normalizedVolume = floorToStep(

@@ -598,13 +598,27 @@ console.log('🧩 content_gate.js carregado');
     if (cleaned.includes(',') && cleaned.includes('.')) {
       cleaned = cleaned.replace(/\./g, '').replace(',', '.');
     } else {
-      cleaned = cleaned.replace(',', '.');
-      const dotCount = (cleaned.match(/\./g) || []).length;
-      if (dotCount > 1) {
-        const lastDot = cleaned.lastIndexOf('.');
-        cleaned = `${cleaned.slice(0, lastDot).replace(/\./g, '')}${cleaned.slice(
-          lastDot
-        )}`;
+      const lastComma = cleaned.lastIndexOf(',');
+      const lastDot = cleaned.lastIndexOf('.');
+      if (lastComma !== -1 && lastDot === -1) {
+        const fraction = cleaned.slice(lastComma + 1);
+        if (fraction.length === 3) {
+          cleaned = cleaned.replace(/,/g, '');
+        } else {
+          cleaned = cleaned.replace(/,/g, '.');
+        }
+      } else if (lastDot !== -1 && lastComma === -1) {
+        const fraction = cleaned.slice(lastDot + 1);
+        if (fraction.length === 3) {
+          cleaned = cleaned.replace(/\./g, '');
+        }
+      } else if (lastComma !== -1 && lastDot !== -1) {
+        const decimalIndex = Math.max(lastComma, lastDot);
+        const integerPart = cleaned.slice(0, decimalIndex).replace(/[.,]/g, '');
+        const fractionalPart = cleaned.slice(decimalIndex + 1).replace(/[.,]/g, '');
+        cleaned = `${integerPart}.${fractionalPart}`;
+      } else {
+        cleaned = cleaned.replace(/[.,]/g, '');
       }
     }
     const parsed = Number(cleaned.replace(/[^\d.-]/g, ''));

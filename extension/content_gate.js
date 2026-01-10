@@ -1754,10 +1754,24 @@ console.log('🧩 content_gate.js carregado');
               }
             }
             const closeContracts = Math.min(gateSpotVolume, closePositionQty);
-            const normalizedVolume = floorToStep(
+            let normalizedVolume = floorToStep(
               closeContracts,
               MEXC_MIN_QTY_STEP
             );
+            if (
+              closeContracts > 0 &&
+              normalizedVolume < closeContracts &&
+              isGateNotionalOk(closeContracts, gateBidPx)
+            ) {
+              normalizedVolume = closeContracts;
+              broadcastLogEntry(
+                `Ordem CLOSE ajustada para limpar residual na Gate (${formatNumber(
+                  closeContracts,
+                  4
+                )} tokens).`,
+                'info'
+              );
+            }
             if (normalizedVolume <= 0) {
               broadcastLogEntry(
                 `Ordem CLOSE ignorada: volume abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens ou reserva mínima na Gate.`,

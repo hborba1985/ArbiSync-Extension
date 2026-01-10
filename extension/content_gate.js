@@ -1017,14 +1017,18 @@ console.log('🧩 content_gate.js carregado');
       const mexcAvg = Number(mexc[assetKey]?.avgPrice);
       const trades = extractGateTrades();
       const tradeQty = computeGateTradeQuantity(assetKey, trades);
-      if (
-        Number.isFinite(tradeQty) &&
-        Math.abs(tradeQty - storedGateQty) > 0.0001
-      ) {
-        gateQty = tradeQty;
-        const avgPrice = computeGateAveragePrice(assetKey, tradeQty, trades);
-        gateAvg = Number.isFinite(avgPrice) ? avgPrice : gateAvg;
-        persistExposureSnapshot(EXCHANGE, assetKey, gateQty, avgPrice);
+      if (Number.isFinite(tradeQty)) {
+        const preferredQty = Math.max(storedGateQty, tradeQty);
+        if (Math.abs(preferredQty - storedGateQty) > 0.0001) {
+          gateQty = preferredQty;
+          const avgPrice = computeGateAveragePrice(
+            assetKey,
+            preferredQty,
+            trades
+          );
+          gateAvg = Number.isFinite(avgPrice) ? avgPrice : gateAvg;
+          persistExposureSnapshot(EXCHANGE, assetKey, gateQty, avgPrice);
+        }
       }
       if (gateQty === 0) {
         const fallback = extractGateExposure(assetKey);
@@ -1039,11 +1043,11 @@ console.log('🧩 content_gate.js carregado');
           );
           const avgPrice = computeGateAveragePrice(
             normalizedAsset,
-            fallbackTradeQty ?? fallback.qty,
+            Math.max(fallback.qty, fallbackTradeQty ?? 0),
             fallbackTrades
           );
           gateQty = Number.isFinite(fallbackTradeQty)
-            ? fallbackTradeQty
+            ? Math.max(fallback.qty, fallbackTradeQty)
             : fallback.qty;
           gateAvg = Number.isFinite(avgPrice) ? avgPrice : gateAvg;
           persistExposureSnapshot(EXCHANGE, normalizedAsset, gateQty, avgPrice);
@@ -1098,7 +1102,9 @@ console.log('🧩 content_gate.js carregado');
       updateActiveAssetLabel();
       const trades = extractGateTrades();
       const tradeQty = computeGateTradeQuantity(normalizedAsset, trades);
-      const effectiveQty = Number.isFinite(tradeQty) ? tradeQty : exposure.qty;
+      const effectiveQty = Number.isFinite(tradeQty)
+        ? Math.max(exposure.qty, tradeQty)
+        : exposure.qty;
       const avgPrice = computeGateAveragePrice(
         normalizedAsset,
         effectiveQty,

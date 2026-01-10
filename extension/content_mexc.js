@@ -749,13 +749,14 @@ console.log('🧩 content_mexc.js carregado');
       gateAvg,
       mexcAvg
     ) => {
-      const formatQty = (value) =>
-        Number.isFinite(value)
-          ? value.toLocaleString('pt-BR', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2
-            })
-          : '--';
+      const formatQty = (value) => {
+        if (!Number.isFinite(value)) return '--';
+        const floored = Math.floor(value * 100) / 100;
+        return floored.toLocaleString('pt-BR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      };
       const formatAvg = (value) =>
         Number.isFinite(value) ? value.toFixed(6) : '--';
       const formatSpread = (value) =>

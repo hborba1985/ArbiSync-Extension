@@ -926,8 +926,8 @@ console.log('🧩 content_gate.js carregado');
       const formatQty = (value) =>
         Number.isFinite(value)
           ? value.toLocaleString('pt-BR', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2
+              minimumFractionDigits: 3,
+              maximumFractionDigits: 3
             })
           : '--';
       const formatAvg = (value) =>

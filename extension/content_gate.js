@@ -821,6 +821,26 @@ console.log('🧩 content_gate.js carregado');
     return cost / filled;
   }
 
+  function computeGateTradeQuantity(asset, trades) {
+    if (!asset || !Array.isArray(trades)) return null;
+    let total = 0;
+    for (const trade of trades) {
+      if (!trade || trade.asset !== asset) continue;
+      if (!Number.isFinite(trade.qty)) continue;
+      const side = trade.side.toLowerCase();
+      const isBuy =
+        side.includes('compra') || side.includes('buy') || side.includes('long');
+      const isSell =
+        side.includes('venda') || side.includes('sell') || side.includes('short');
+      if (isBuy) {
+        total += trade.qty;
+      } else if (isSell) {
+        total -= trade.qty;
+      }
+    }
+    return Number.isFinite(total) ? Math.max(total, 0) : null;
+  }
+
   async function persistExposureSnapshot(exchange, asset, qty, avgPrice) {
     if (!asset || !Number.isFinite(qty)) return;
     const normalizedAsset = asset.toUpperCase();
@@ -995,21 +1015,38 @@ console.log('🧩 content_gate.js carregado');
       let mexcQty = Number(mexc[assetKey]?.qty) || 0;
       let gateAvg = Number(gate[assetKey]?.avgPrice);
       const mexcAvg = Number(mexc[assetKey]?.avgPrice);
+      const trades = extractGateTrades();
+      const tradeQty = computeGateTradeQuantity(assetKey, trades);
+      if (
+        Number.isFinite(tradeQty) &&
+        Math.abs(tradeQty - storedGateQty) > 0.0001
+      ) {
+        gateQty = tradeQty;
+        const avgPrice = computeGateAveragePrice(assetKey, tradeQty, trades);
+        gateAvg = Number.isFinite(avgPrice) ? avgPrice : gateAvg;
+        persistExposureSnapshot(EXCHANGE, assetKey, gateQty, avgPrice);
+      }
       if (gateQty === 0) {
         const fallback = extractGateExposure(assetKey);
         if (fallback) {
           const normalizedAsset = fallback.asset.toUpperCase();
           exposureState.asset = normalizedAsset;
           updateActiveAssetLabel();
-          const trades = extractGateTrades();
+          const fallbackTrades = extractGateTrades();
+          const fallbackTradeQty = computeGateTradeQuantity(
+            normalizedAsset,
+            fallbackTrades
+          );
           const avgPrice = computeGateAveragePrice(
             normalizedAsset,
-            fallback.qty,
-            trades
+            fallbackTradeQty ?? fallback.qty,
+            fallbackTrades
           );
-          gateQty = fallback.qty;
+          gateQty = Number.isFinite(fallbackTradeQty)
+            ? fallbackTradeQty
+            : fallback.qty;
           gateAvg = Number.isFinite(avgPrice) ? avgPrice : gateAvg;
-          persistExposureSnapshot(EXCHANGE, normalizedAsset, fallback.qty, avgPrice);
+          persistExposureSnapshot(EXCHANGE, normalizedAsset, gateQty, avgPrice);
         }
       }
       const exposureStatus = document.getElementById('exposureStatus');
@@ -1060,12 +1097,14 @@ console.log('🧩 content_gate.js carregado');
       exposureState.asset = normalizedAsset;
       updateActiveAssetLabel();
       const trades = extractGateTrades();
+      const tradeQty = computeGateTradeQuantity(normalizedAsset, trades);
+      const effectiveQty = Number.isFinite(tradeQty) ? tradeQty : exposure.qty;
       const avgPrice = computeGateAveragePrice(
         normalizedAsset,
-        exposure.qty,
+        effectiveQty,
         trades
       );
-      persistExposureSnapshot(EXCHANGE, normalizedAsset, exposure.qty, avgPrice)
+      persistExposureSnapshot(EXCHANGE, normalizedAsset, effectiveQty, avgPrice)
         .then(() => updateExposurePanel(latestSettings));
     };
     poll();

@@ -284,7 +284,10 @@
     };
 
     const setContracts = (mode) => {
-      const qtyInput = mode === 'close' ? findCloseQtyInput() : getQtyInput(mode);
+      const qtyInput =
+        mode === 'close'
+          ? findCloseQtyInput() || getQtyInput(mode)
+          : getQtyInput(mode);
       if (!qtyInput) return null;
       setNativeValue(qtyInput, String(contracts));
       dispatchInputEvents(qtyInput);

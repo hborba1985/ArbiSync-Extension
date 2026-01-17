@@ -603,6 +603,11 @@ console.log('🧩 content_gate.js carregado');
     return Math.floor(value / step) * step;
   }
 
+  function ceilToStep(value, step) {
+    if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) return 0;
+    return Math.ceil(value / step) * step;
+  }
+
   function isGateNotionalOk(volume, price) {
     if (!Number.isFinite(volume) || !Number.isFinite(price)) return false;
     return volume * price >= MIN_GATE_ORDER_USDT;
@@ -1837,25 +1842,29 @@ console.log('🧩 content_gate.js carregado');
               }
             }
             const closeContracts = Math.min(gateSpotVolume, closePositionQty);
-            const normalizedVolume = floorToStep(
-              closeContracts,
-              MEXC_MIN_QTY_STEP
+            const mexcContracts = Math.min(
+              closePositionQty,
+              ceilToStep(closeContracts, MEXC_MIN_QTY_STEP)
             );
-            if (normalizedVolume < closeContracts) {
+            if (mexcContracts > closeContracts) {
               broadcastLogEntry(
-                `Ordem CLOSE ajustada para respeitar o mínimo da MEXC (${MEXC_MIN_QTY_STEP} em ${MEXC_MIN_QTY_STEP} tokens).`,
+                `Ordem CLOSE ajustada para a MEXC: ${formatTokenQtyForLog(
+                  closeContracts
+                )} tokens na Gate / ${formatTokenQtyForLog(
+                  mexcContracts
+                )} contratos na MEXC.`,
                 'info'
               );
             }
-            if (normalizedVolume <= 0) {
+            if (mexcContracts < MEXC_MIN_QTY_STEP) {
               broadcastLogEntry(
                 `Ordem CLOSE ignorada: volume abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens ou reserva mínima na Gate.`,
                 'warn'
               );
-            } else if (!isGateNotionalOk(normalizedVolume, gateBidPx)) {
+            } else if (!isGateNotionalOk(closeContracts, gateBidPx)) {
               broadcastLogEntry(
                 `Ordem CLOSE ignorada: valor abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatTokenQtyForLog(
-                  normalizedVolume
+                  closeContracts
                 )} tokens).`,
                 'warn'
               );
@@ -1867,11 +1876,11 @@ console.log('🧩 content_gate.js carregado');
               );
               broadcastLogEntry(
                 `Fechamento de ${formatTokenQtyForLog(
-                  normalizedVolume
+                  closeContracts
                 )} tokens: ${reason}`,
                 'info'
               );
-              const remainingAfterClose = gateAvailable - normalizedVolume;
+              const remainingAfterClose = gateAvailable - closeContracts;
               if (
                 Number.isFinite(minGateReserveTokens) &&
                 minGateReserveTokens > 0 &&
@@ -1889,20 +1898,20 @@ console.log('🧩 content_gate.js carregado');
                 close: {
                   gatePrice: gateBidPx,
                   mexcPrice: mexcAskPx,
-                  spotVolume: normalizedVolume,
-                  futuresContracts: normalizedVolume,
+                  spotVolume: closeContracts,
+                  futuresContracts: mexcContracts,
                   spread: spreadClose
                 },
                 snapshot: {
-                  spotVolume: normalizedVolume,
-                  futuresContracts: normalizedVolume
+                  spotVolume: closeContracts,
+                  futuresContracts: mexcContracts
                 }
               };
               syncExecutionLog(logPayload);
               sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
               const payload = {
-                spotVolume: normalizedVolume,
-                futuresContracts: normalizedVolume,
+                spotVolume: closeContracts,
+                futuresContracts: mexcContracts,
                 pairGate: data.pairGate || '',
                 pairMexc: data.pairMexc || '',
                 modes: {
@@ -1916,12 +1925,12 @@ console.log('🧩 content_gate.js carregado');
               );
               broadcastLogEntry(
                 `Ordem CLOSE enviada: ${formatNumber(
-                  normalizedVolume,
+                  closeContracts,
                   4
                 )} tokens (Gate @ ${formatNumber(
                   gateBidPx,
                   6
-                )}).`,
+                )}) / ${formatNumber(mexcContracts, 4)} contratos (MEXC).`,
                 'success'
               );
               sendRuntimeMessage({

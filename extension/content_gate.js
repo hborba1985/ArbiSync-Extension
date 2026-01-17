@@ -1817,13 +1817,23 @@ console.log('🧩 content_gate.js carregado');
           if (shouldAutoClose) {
             const selectedVolume = closeTopVolume;
             const gateAvailable = Math.abs(Number(exposureState.gateQty) || 0);
+            const effectiveGateBidPx = Number.isFinite(gateBidPx)
+              ? gateBidPx
+              : domBookCache.gate.bidPrice;
             const minGateReserveTokens =
-              Number.isFinite(gateBidPx) && gateBidPx > 0
-                ? MIN_GATE_ORDER_USDT / gateBidPx
+              Number.isFinite(effectiveGateBidPx) && effectiveGateBidPx > 0
+                ? MIN_GATE_ORDER_USDT / effectiveGateBidPx
                 : 0;
             let gateSpotVolume;
             const wantsFullClose = selectedVolume >= gateAvailable;
-            if (wantsFullClose && isGateNotionalOk(gateAvailable, gateBidPx)) {
+            const allowFinalClose =
+              Number.isFinite(minGateReserveTokens) &&
+              minGateReserveTokens > 0 &&
+              gateAvailable <= minGateReserveTokens &&
+              isGateNotionalOk(gateAvailable, effectiveGateBidPx);
+            if (allowFinalClose) {
+              gateSpotVolume = gateAvailable;
+            } else if (wantsFullClose && isGateNotionalOk(gateAvailable, effectiveGateBidPx)) {
               gateSpotVolume = gateAvailable;
             } else {
               const maxClosable =
@@ -1842,11 +1852,6 @@ console.log('🧩 content_gate.js carregado');
               }
             }
             let closeContracts = Math.min(gateSpotVolume, closePositionQty);
-            const allowFinalClose =
-              Number.isFinite(minGateReserveTokens) &&
-              minGateReserveTokens > 0 &&
-              gateAvailable <= minGateReserveTokens &&
-              isGateNotionalOk(gateAvailable, gateBidPx);
             if (allowFinalClose) {
               closeContracts = Math.min(gateAvailable, closePositionQty);
             }
@@ -1889,7 +1894,7 @@ console.log('🧩 content_gate.js carregado');
                 `Ordem CLOSE ignorada: volume abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens ou reserva mínima na Gate.`,
                 'warn'
               );
-            } else if (!isGateNotionalOk(closeContracts, gateBidPx)) {
+            } else if (!isGateNotionalOk(closeContracts, effectiveGateBidPx)) {
               broadcastLogEntry(
                 `Ordem CLOSE ignorada: valor abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatTokenQtyForLog(
                   closeContracts

@@ -1820,6 +1820,10 @@ console.log('🧩 content_gate.js carregado');
             const effectiveGateBidPx = Number.isFinite(gateBidPx)
               ? gateBidPx
               : domBookCache.gate.bidPrice;
+            const minGateReserveTokens =
+              Number.isFinite(effectiveGateBidPx) && effectiveGateBidPx > 0
+                ? MIN_GATE_ORDER_USDT / effectiveGateBidPx
+                : 0;
             let gateSpotVolume;
             const wantsFullClose = selectedVolume >= gateAvailable;
             if (wantsFullClose && isGateNotionalOk(gateAvailable, effectiveGateBidPx)) {
@@ -1828,9 +1832,33 @@ console.log('🧩 content_gate.js carregado');
               gateSpotVolume = Math.min(selectedVolume, gateAvailable);
             }
             let closeContracts = Math.min(gateSpotVolume, closePositionQty);
+            if (
+              Number.isFinite(minGateReserveTokens) &&
+              minGateReserveTokens > 0 &&
+              closeContracts > gateAvailable - minGateReserveTokens
+            ) {
+              const maxClosable = Math.max(gateAvailable - minGateReserveTokens, 0);
+              const adjustedClose = floorToStep(maxClosable, MEXC_MIN_QTY_STEP);
+              if (adjustedClose <= 0) {
+                broadcastLogEntry(
+                  `Ordem CLOSE ajustada para manter saldo mínimo na Gate (${formatTokenQtyForLog(
+                    minGateReserveTokens
+                  )} tokens).`,
+                  'info'
+                );
+              } else if (adjustedClose < closeContracts) {
+                closeContracts = adjustedClose;
+                broadcastLogEntry(
+                  `Ordem CLOSE ajustada para manter saldo mínimo na Gate (${formatTokenQtyForLog(
+                    minGateReserveTokens
+                  )} tokens).`,
+                  'info'
+                );
+              }
+            }
             const mexcContracts = Math.min(
               closePositionQty,
-              ceilToStep(closeContracts, MEXC_MIN_QTY_STEP)
+              closeContracts
             );
             if (mexcContracts > closeContracts) {
               broadcastLogEntry(

@@ -1820,61 +1820,14 @@ console.log('🧩 content_gate.js carregado');
             const effectiveGateBidPx = Number.isFinite(gateBidPx)
               ? gateBidPx
               : domBookCache.gate.bidPrice;
-            const minGateReserveTokens =
-              Number.isFinite(effectiveGateBidPx) && effectiveGateBidPx > 0
-                ? MIN_GATE_ORDER_USDT / effectiveGateBidPx
-                : 0;
             let gateSpotVolume;
             const wantsFullClose = selectedVolume >= gateAvailable;
-            const allowFinalClose =
-              Number.isFinite(minGateReserveTokens) &&
-              minGateReserveTokens > 0 &&
-              gateAvailable <= minGateReserveTokens &&
-              isGateNotionalOk(gateAvailable, effectiveGateBidPx);
-            if (allowFinalClose) {
-              gateSpotVolume = gateAvailable;
-            } else if (wantsFullClose && isGateNotionalOk(gateAvailable, effectiveGateBidPx)) {
+            if (wantsFullClose && isGateNotionalOk(gateAvailable, effectiveGateBidPx)) {
               gateSpotVolume = gateAvailable;
             } else {
-              const maxClosable =
-                Number.isFinite(minGateReserveTokens) && minGateReserveTokens > 0
-                  ? Math.max(gateAvailable - minGateReserveTokens, 0)
-                  : gateAvailable;
-              gateSpotVolume = Math.min(selectedVolume, maxClosable);
-              if (gateSpotVolume < selectedVolume && maxClosable >= 0) {
-                broadcastLogEntry(
-                  `Ordem CLOSE limitada pela reserva mínima da Gate (${formatNumber(
-                    minGateReserveTokens,
-                    4
-                  )} tokens).`,
-                  'info'
-                );
-              }
+              gateSpotVolume = Math.min(selectedVolume, gateAvailable);
             }
             let closeContracts = Math.min(gateSpotVolume, closePositionQty);
-            if (allowFinalClose) {
-              closeContracts = Math.min(gateAvailable, closePositionQty);
-            }
-            if (
-              Number.isFinite(minGateReserveTokens) &&
-              minGateReserveTokens > 0 &&
-              gateAvailable - closeContracts < minGateReserveTokens &&
-              !allowFinalClose
-            ) {
-              const maxClosable =
-                Number.isFinite(gateAvailable) && gateAvailable > 0
-                  ? Math.max(gateAvailable - minGateReserveTokens, 0)
-                  : 0;
-              if (maxClosable < closeContracts) {
-                closeContracts = maxClosable;
-                broadcastLogEntry(
-                  `Ordem CLOSE ajustada para preservar a reserva mínima da Gate (${formatTokenQtyForLog(
-                    minGateReserveTokens
-                  )} tokens).`,
-                  'info'
-                );
-              }
-            }
             const mexcContracts = Math.min(
               closePositionQty,
               ceilToStep(closeContracts, MEXC_MIN_QTY_STEP)
@@ -1913,19 +1866,6 @@ console.log('🧩 content_gate.js carregado');
                 )} tokens: ${reason}`,
                 'info'
               );
-              const remainingAfterClose = gateAvailable - closeContracts;
-              if (
-                Number.isFinite(minGateReserveTokens) &&
-                minGateReserveTokens > 0 &&
-                remainingAfterClose < minGateReserveTokens
-              ) {
-                broadcastLogEntry(
-                  `Ordem CLOSE ajustada para manter reserva mínima na Gate (${formatTokenQtyForLog(
-                    minGateReserveTokens
-                  )} tokens).`,
-                  'info'
-                );
-              }
               const logPayload = {
                 open: null,
                 close: {

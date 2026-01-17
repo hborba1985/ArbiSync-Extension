@@ -3,6 +3,11 @@
     <div class="title">ARBITRAGEM DETECTADA <span id="activeAsset">--</span></div>
     <button class="panel-close" id="minimizeOverlayBtn" type="button" aria-label="Minimizar overlay">✕</button>
   </div>
+  <div class="panel-zoom">
+    <label for="overlayZoom">Zoom do overlay</label>
+    <input id="overlayZoom" type="range" min="70" max="130" step="5" value="100" />
+    <span id="overlayZoomValue">100%</span>
+  </div>
   <div class="panel-tabs" role="tablist" aria-label="Navegação do painel">
     <button class="panel-tab is-active" type="button" data-tab-target="trading">TRADING</button>
     <button class="panel-tab" type="button" data-tab-target="log">LOG</button>

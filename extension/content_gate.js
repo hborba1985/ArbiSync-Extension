@@ -16,6 +16,7 @@ console.log('🧩 content_gate.js carregado');
   const LOG_MAX_ENTRIES = 200;
   const LOG_THROTTLE_MS = 2000;
   const lastLogByMessage = new Map();
+  const OVERLAY_ZOOM_STORAGE_KEY = 'arbsync_overlay_zoom';
   const domBookCache = {
     gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
     mexc: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null }
@@ -110,6 +111,7 @@ console.log('🧩 content_gate.js carregado');
           }
         });
         setupMinimize();
+        setupOverlayZoom();
         setupTabs();
         registerTab();
         updateLogEmptyState();
@@ -226,6 +228,33 @@ console.log('🧩 content_gate.js carregado');
     });
 
     applyState(false);
+  }
+
+  function applyOverlayZoom(scale) {
+    const panel = document.getElementById('arb-panel');
+    if (!panel) return;
+    panel.style.transform = `scale(${scale})`;
+    panel.style.transformOrigin = 'top right';
+  }
+
+  function setupOverlayZoom() {
+    const panel = document.getElementById('arb-panel');
+    const zoomInput = document.getElementById('overlayZoom');
+    const zoomValue = document.getElementById('overlayZoomValue');
+    if (!panel || !zoomInput || !zoomValue) return;
+    const stored = Number(localStorage.getItem(OVERLAY_ZOOM_STORAGE_KEY));
+    const initial = Number.isFinite(stored) && stored > 0 ? stored : 100;
+    zoomInput.value = String(initial);
+    zoomValue.textContent = `${initial}%`;
+    applyOverlayZoom(initial / 100);
+
+    zoomInput.addEventListener('input', () => {
+      const next = Number(zoomInput.value);
+      if (!Number.isFinite(next)) return;
+      zoomValue.textContent = `${next}%`;
+      localStorage.setItem(OVERLAY_ZOOM_STORAGE_KEY, String(next));
+      applyOverlayZoom(next / 100);
+    });
   }
 
   function sendCommand(command) {

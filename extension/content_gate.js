@@ -1841,7 +1841,26 @@ console.log('🧩 content_gate.js carregado');
                 );
               }
             }
-            const closeContracts = Math.min(gateSpotVolume, closePositionQty);
+            let closeContracts = Math.min(gateSpotVolume, closePositionQty);
+            if (
+              Number.isFinite(minGateReserveTokens) &&
+              minGateReserveTokens > 0 &&
+              gateAvailable - closeContracts < minGateReserveTokens
+            ) {
+              const maxClosable =
+                Number.isFinite(gateAvailable) && gateAvailable > 0
+                  ? Math.max(gateAvailable - minGateReserveTokens, 0)
+                  : 0;
+              if (maxClosable < closeContracts) {
+                closeContracts = maxClosable;
+                broadcastLogEntry(
+                  `Ordem CLOSE ajustada para preservar a reserva mínima da Gate (${formatTokenQtyForLog(
+                    minGateReserveTokens
+                  )} tokens).`,
+                  'info'
+                );
+              }
+            }
             const mexcContracts = Math.min(
               closePositionQty,
               ceilToStep(closeContracts, MEXC_MIN_QTY_STEP)

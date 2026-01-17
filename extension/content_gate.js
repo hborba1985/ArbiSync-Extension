@@ -1845,6 +1845,14 @@ console.log('🧩 content_gate.js carregado');
             if (
               Number.isFinite(minGateReserveTokens) &&
               minGateReserveTokens > 0 &&
+              gateAvailable <= minGateReserveTokens &&
+              isGateNotionalOk(gateAvailable, gateBidPx)
+            ) {
+              closeContracts = Math.min(gateAvailable, closePositionQty);
+            }
+            if (
+              Number.isFinite(minGateReserveTokens) &&
+              minGateReserveTokens > 0 &&
               gateAvailable - closeContracts < minGateReserveTokens
             ) {
               const maxClosable =

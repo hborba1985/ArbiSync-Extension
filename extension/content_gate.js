@@ -1842,18 +1842,19 @@ console.log('🧩 content_gate.js carregado');
               }
             }
             let closeContracts = Math.min(gateSpotVolume, closePositionQty);
-            if (
+            const allowFinalClose =
               Number.isFinite(minGateReserveTokens) &&
               minGateReserveTokens > 0 &&
               gateAvailable <= minGateReserveTokens &&
-              isGateNotionalOk(gateAvailable, gateBidPx)
-            ) {
+              isGateNotionalOk(gateAvailable, gateBidPx);
+            if (allowFinalClose) {
               closeContracts = Math.min(gateAvailable, closePositionQty);
             }
             if (
               Number.isFinite(minGateReserveTokens) &&
               minGateReserveTokens > 0 &&
-              gateAvailable - closeContracts < minGateReserveTokens
+              gateAvailable - closeContracts < minGateReserveTokens &&
+              !allowFinalClose
             ) {
               const maxClosable =
                 Number.isFinite(gateAvailable) && gateAvailable > 0

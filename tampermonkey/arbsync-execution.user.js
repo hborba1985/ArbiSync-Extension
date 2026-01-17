@@ -160,6 +160,7 @@
       console.warn('[ArbiSync] Contratos FUTUROS inválidos');
       return;
     }
+    const MEXC_MIN_QTY_STEP = 10;
 
     const getQtyInput = (mode = 'open') => {
       const scopeSelectors = mode === 'close'
@@ -301,8 +302,13 @@
       if (mode === 'close' && Number.isFinite(parsedInput)) {
         const expected = Number(contracts);
         if (Number.isFinite(expected) && Math.abs(parsedInput - expected) > 0.0001) {
-          sendAlert(`Quantidade divergente na MEXC (input="${qtyInput.value}"). Abortando.`);
-          return null;
+          const roundedDownOk =
+            parsedInput <= expected &&
+            expected - parsedInput < MEXC_MIN_QTY_STEP + 0.0001;
+          if (!roundedDownOk) {
+            sendAlert(`Quantidade divergente na MEXC (input="${qtyInput.value}"). Abortando.`);
+            return null;
+          }
         }
       }
       return qtyInput;

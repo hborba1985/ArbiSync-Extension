@@ -1131,6 +1131,17 @@ console.log('🧩 content_gate.js carregado');
         '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE'
     };
 
+    const fallbackSelectors = {
+      askPrice:
+        '#trade-container-spot-orderbook-asks .orderbook-list-item:nth-child(1) .price, #trade-container-spot-orderbook-asks .orderbook-row:nth-child(1) .price, #trade-container-spot-orderbook-asks li:nth-child(1) .price',
+      askVolume:
+        '#trade-container-spot-orderbook-asks .orderbook-list-item:nth-child(1) .amount, #trade-container-spot-orderbook-asks .orderbook-row:nth-child(1) .amount, #trade-container-spot-orderbook-asks li:nth-child(1) .amount',
+      bidPrice:
+        '#trade-container-spot-orderbook-bids .orderbook-list-item:nth-child(1) .price, #trade-container-spot-orderbook-bids .orderbook-row:nth-child(1) .price, #trade-container-spot-orderbook-bids li:nth-child(1) .price',
+      bidVolume:
+        '#trade-container-spot-orderbook-bids .orderbook-list-item:nth-child(1) .amount, #trade-container-spot-orderbook-bids .orderbook-row:nth-child(1) .amount, #trade-container-spot-orderbook-bids li:nth-child(1) .amount'
+    };
+
     const last = {
       askPrice: null,
       askVolume: null,
@@ -1177,16 +1188,20 @@ console.log('🧩 content_gate.js carregado');
 
     const updateFromDom = () => {
       const askPrice = parseNumber(
-        document.querySelector(selectors.askPrice)?.textContent
+        document.querySelector(selectors.askPrice)?.textContent ??
+          document.querySelector(fallbackSelectors.askPrice)?.textContent
       );
       const askVolume = parseNumber(
-        document.querySelector(selectors.askVolume)?.textContent
+        document.querySelector(selectors.askVolume)?.textContent ??
+          document.querySelector(fallbackSelectors.askVolume)?.textContent
       );
       const bidPrice = parseNumber(
-        document.querySelector(selectors.bidPrice)?.textContent
+        document.querySelector(selectors.bidPrice)?.textContent ??
+          document.querySelector(fallbackSelectors.bidPrice)?.textContent
       );
       const bidVolume = parseNumber(
-        document.querySelector(selectors.bidVolume)?.textContent
+        document.querySelector(selectors.bidVolume)?.textContent ??
+          document.querySelector(fallbackSelectors.bidVolume)?.textContent
       );
 
       applyDomValues({ askPrice, askVolume, bidPrice, bidVolume });

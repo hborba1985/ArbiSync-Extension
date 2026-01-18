@@ -1832,7 +1832,10 @@ console.log('🧩 content_gate.js carregado');
               gateSpotVolume = Math.min(selectedVolume, gateAvailable);
             }
             let closeContracts = Math.min(gateSpotVolume, closePositionQty);
+            const allowFullClose =
+              wantsFullClose && isGateNotionalOk(gateAvailable, effectiveGateBidPx);
             if (
+              !allowFullClose &&
               Number.isFinite(minGateReserveTokens) &&
               minGateReserveTokens > 0 &&
               closeContracts > gateAvailable - minGateReserveTokens
@@ -1856,10 +1859,9 @@ console.log('🧩 content_gate.js carregado');
                 );
               }
             }
-            const mexcContracts = Math.min(
-              closePositionQty,
-              closeContracts
-            );
+            const mexcContracts = allowFullClose
+              ? Math.min(closePositionQty, ceilToStep(closeContracts, MEXC_MIN_QTY_STEP))
+              : Math.min(closePositionQty, closeContracts);
             if (mexcContracts > closeContracts) {
               broadcastLogEntry(
                 `Ordem CLOSE ajustada para a MEXC: ${formatTokenQtyForLog(

@@ -808,6 +808,7 @@ console.log('🧩 content_gate.js carregado');
 
   let gateHistoryToggleState = null;
   let gateHistoryToggleAt = 0;
+  let gateHistoryToggleTimer = null;
   function refreshGateTradeHistory() {
     const now = Date.now();
     if (now - gateHistoryToggleAt < 1500) {
@@ -820,13 +821,18 @@ console.log('🧩 content_gate.js carregado');
       '#orderPanel > div > div.flex.flex-col.w-full.h-full.relative.box-border.overflow-auto.transition-height.duration-400.ease-linear.text-body-s > div.flex.items-center.my-3.mx-4 > div.flex.gap-2 > div:nth-child(2)'
     );
     if (oneDayButton && sevenDayButton) {
-      if (!gateHistoryToggleState) {
-        gateHistoryToggleState = '1d';
+      if (gateHistoryToggleTimer) {
+        clearTimeout(gateHistoryToggleTimer);
       }
-      gateHistoryToggleState = gateHistoryToggleState === '1d' ? '7d' : '1d';
-      const target = gateHistoryToggleState === '1d' ? oneDayButton : sevenDayButton;
-      target.click();
-      gateHistoryToggleAt = now;
+      gateHistoryToggleTimer = setTimeout(() => {
+        if (!gateHistoryToggleState) {
+          gateHistoryToggleState = '1d';
+        }
+        gateHistoryToggleState = gateHistoryToggleState === '1d' ? '7d' : '1d';
+        const target = gateHistoryToggleState === '1d' ? oneDayButton : sevenDayButton;
+        target.click();
+        gateHistoryToggleAt = Date.now();
+      }, 1000);
       return;
     }
     const checkboxInput = document.querySelector('#mantine-7tgjuotkn');
@@ -850,8 +856,13 @@ console.log('🧩 content_gate.js carregado');
     const target = checkboxInput || checkboxRoot;
     if (!target) return;
     if (current !== gateHistoryToggleState) {
-      target.click();
-      gateHistoryToggleAt = now;
+      if (gateHistoryToggleTimer) {
+        clearTimeout(gateHistoryToggleTimer);
+      }
+      gateHistoryToggleTimer = setTimeout(() => {
+        target.click();
+        gateHistoryToggleAt = Date.now();
+      }, 1000);
     }
   }
 
@@ -1840,7 +1851,10 @@ console.log('🧩 content_gate.js carregado');
             }
             let closeContracts = Math.min(gateSpotVolume, closePositionQty);
             const allowFullClose =
-              wantsFullClose && isGateNotionalOk(gateAvailable, effectiveGateBidPx);
+              wantsFullClose &&
+              isGateNotionalOk(gateAvailable, effectiveGateBidPx) &&
+              closeTopVolume >= gateAvailable &&
+              closeTopVolume >= closePositionQty;
             if (
               !allowFullClose &&
               Number.isFinite(minGateReserveTokens) &&
@@ -1865,6 +1879,9 @@ console.log('🧩 content_gate.js carregado');
                   'info'
                 );
               }
+            }
+            if (!allowFullClose) {
+              closeContracts = floorToStep(closeContracts, MEXC_MIN_QTY_STEP);
             }
             const mexcContracts = allowFullClose
               ? Math.min(closePositionQty, ceilToStep(closeContracts, MEXC_MIN_QTY_STEP))

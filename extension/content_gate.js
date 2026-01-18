@@ -807,7 +807,12 @@ console.log('🧩 content_gate.js carregado');
   }
 
   let gateHistoryToggleState = null;
+  let gateHistoryToggleAt = 0;
   function refreshGateTradeHistory() {
+    const now = Date.now();
+    if (now - gateHistoryToggleAt < 1500) {
+      return;
+    }
     const oneDayButton = document.querySelector(
       '#orderPanel > div > div.flex.flex-col.w-full.h-full.relative.box-border.overflow-auto.transition-height.duration-400.ease-linear.text-body-s > div.flex.items-center.my-3.mx-4 > div.flex.gap-2 > div:nth-child(1)'
     );
@@ -821,6 +826,7 @@ console.log('🧩 content_gate.js carregado');
       gateHistoryToggleState = gateHistoryToggleState === '1d' ? '7d' : '1d';
       const target = gateHistoryToggleState === '1d' ? oneDayButton : sevenDayButton;
       target.click();
+      gateHistoryToggleAt = now;
       return;
     }
     const checkboxInput = document.querySelector('#mantine-7tgjuotkn');
@@ -845,6 +851,7 @@ console.log('🧩 content_gate.js carregado');
     if (!target) return;
     if (current !== gateHistoryToggleState) {
       target.click();
+      gateHistoryToggleAt = now;
     }
   }
 

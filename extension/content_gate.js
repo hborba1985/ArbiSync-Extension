@@ -7,9 +7,16 @@ console.log('🧩 content_gate.js carregado');
   const EXCHANGE = 'GATE';
   const GROUP_STORAGE_KEY = 'arbsync_group';
   const AUTO_EXECUTION_COOLDOWN_FALLBACK_MS = 7000;
+  const MIN_GATE_ORDER_USDT = 1;
+  const MEXC_MIN_QTY_STEP = 10;
   let lastDomBookUpdate = 0;
-  const lastAutoExecution = { open: 0, close: 0 };
+  const lastAutoExecution = { open: 0, close: 0, rebalance: 0 };
   const executionLog = { open: null, close: null };
+  const logEntries = [];
+  const LOG_MAX_ENTRIES = 200;
+  const LOG_THROTTLE_MS = 2000;
+  const lastLogByMessage = new Map();
+  const OVERLAY_ZOOM_STORAGE_KEY = 'arbsync_overlay_zoom';
   const domBookCache = {
     gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
     mexc: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null }
@@ -24,6 +31,7 @@ console.log('🧩 content_gate.js carregado');
     gateAvg: null,
     mexcAvg: null
   };
+  let lastLimitStatusMessage = null;
   let latestSettings = {};
 
   function safeStorageGet(key) {
@@ -103,7 +111,10 @@ console.log('🧩 content_gate.js carregado');
           }
         });
         setupMinimize();
+        setupOverlayZoom();
+        setupTabs();
         registerTab();
+        updateLogEmptyState();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -114,6 +125,79 @@ console.log('🧩 content_gate.js carregado');
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = value;
+  }
+
+  function setupTabs() {
+    const tabButtons = Array.from(
+      document.querySelectorAll('#arb-panel .panel-tab[data-tab-target]')
+    );
+    const tabContents = Array.from(
+      document.querySelectorAll('#arb-panel .panel-tab-content')
+    );
+    if (!tabButtons.length || !tabContents.length) return;
+
+    const activateTab = (target) => {
+      tabButtons.forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.tabTarget === target);
+      });
+      tabContents.forEach((content) => {
+        content.classList.toggle(
+          'is-active',
+          content.dataset.tabContent === target
+        );
+      });
+    };
+
+    tabButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        activateTab(btn.dataset.tabTarget);
+      });
+    });
+
+    activateTab(tabButtons.find((btn) => btn.classList.contains('is-active'))?.dataset.tabTarget || 'trading');
+  }
+
+  function updateLogEmptyState() {
+    const emptyState = document.getElementById('arb-log-empty');
+    const list = document.getElementById('arb-log-list');
+    if (!emptyState || !list) return;
+    emptyState.style.display = list.children.length ? 'none' : 'block';
+  }
+
+  function appendLogEntry(entry) {
+    if (!entry) return;
+    const list = document.getElementById('arb-log-list');
+    if (!list) return;
+    const time = new Date(entry.at || Date.now());
+    const timeLabel = time.toLocaleTimeString('pt-BR');
+    const item = document.createElement('div');
+    item.className = `log-entry ${entry.level ? `is-${entry.level}` : ''}`.trim();
+    item.innerHTML = `<span class="log-time">${timeLabel}</span><span class="log-message">${entry.message}</span>`;
+    list.insertBefore(item, list.firstChild);
+    logEntries.push(entry);
+    while (logEntries.length > LOG_MAX_ENTRIES) {
+      logEntries.shift();
+      list.removeChild(list.lastChild);
+    }
+    updateLogEmptyState();
+  }
+
+  function broadcastLogEntry(message, level = 'info') {
+    if (!message) return;
+    const now = Date.now();
+    const lastAt = lastLogByMessage.get(message);
+    if (Number.isFinite(lastAt) && now - lastAt < LOG_THROTTLE_MS) {
+      return;
+    }
+    lastLogByMessage.set(message, now);
+    const entry = {
+      message,
+      level,
+      at: Date.now(),
+      source: EXCHANGE
+    };
+    appendLogEntry(entry);
+    sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: { logEntry: entry } });
   }
 
   function setupMinimize() {
@@ -144,6 +228,33 @@ console.log('🧩 content_gate.js carregado');
     });
 
     applyState(false);
+  }
+
+  function applyOverlayZoom(scale) {
+    const panel = document.getElementById('arb-panel');
+    if (!panel) return;
+    panel.style.transform = `scale(${scale})`;
+    panel.style.transformOrigin = 'top right';
+  }
+
+  function setupOverlayZoom() {
+    const panel = document.getElementById('arb-panel');
+    const zoomInput = document.getElementById('overlayZoom');
+    const zoomValue = document.getElementById('overlayZoomValue');
+    if (!panel || !zoomInput || !zoomValue) return;
+    const stored = Number(localStorage.getItem(OVERLAY_ZOOM_STORAGE_KEY));
+    const initial = Number.isFinite(stored) && stored > 0 ? stored : 100;
+    zoomInput.value = String(initial);
+    zoomValue.textContent = `${initial}%`;
+    applyOverlayZoom(initial / 100);
+
+    zoomInput.addEventListener('input', () => {
+      const next = Number(zoomInput.value);
+      if (!Number.isFinite(next)) return;
+      zoomValue.textContent = `${next}%`;
+      localStorage.setItem(OVERLAY_ZOOM_STORAGE_KEY, String(next));
+      applyOverlayZoom(next / 100);
+    });
   }
 
   function sendCommand(command) {
@@ -487,6 +598,45 @@ console.log('🧩 content_gate.js carregado');
     });
   }
 
+  function floorToStep(value, step) {
+    if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) return 0;
+    return Math.floor(value / step) * step;
+  }
+
+  function ceilToStep(value, step) {
+    if (!Number.isFinite(value) || !Number.isFinite(step) || step <= 0) return 0;
+    return Math.ceil(value / step) * step;
+  }
+
+  function isGateNotionalOk(volume, price) {
+    if (!Number.isFinite(volume) || !Number.isFinite(price)) return false;
+    return volume * price >= MIN_GATE_ORDER_USDT;
+  }
+
+  function formatTokenQtyForLog(value) {
+    if (!Number.isFinite(value)) return '--';
+    const floored = Math.floor(value);
+    return floored.toLocaleString('pt-BR');
+  }
+
+  function buildOpenDecisionReason(useTopLiquidity, gateAskQty, mexcBidQty) {
+    if (!useTopLiquidity) {
+      return 'Compra baseada no volume configurado.';
+    }
+    return `Compra baseada no menor volume do 1º nível (Gate ${formatTokenQtyForLog(
+      gateAskQty
+    )} x MEXC ${formatTokenQtyForLog(mexcBidQty)}).`;
+  }
+
+  function buildCloseDecisionReason(useTopLiquidity, gateBidQty, mexcAskQty) {
+    if (!useTopLiquidity) {
+      return 'Fechamento baseado no volume configurado.';
+    }
+    return `Fechamento baseado no menor volume do 1º nível (Gate ${formatTokenQtyForLog(
+      gateBidQty
+    )} x MEXC ${formatTokenQtyForLog(mexcAskQty)}).`;
+  }
+
   function parseNumber(value) {
     if (value == null) return null;
     let cleaned = String(value).replace(/[^\d.,kKmM-]/g, '');
@@ -515,13 +665,27 @@ console.log('🧩 content_gate.js carregado');
     if (cleaned.includes(',') && cleaned.includes('.')) {
       cleaned = cleaned.replace(/\./g, '').replace(',', '.');
     } else {
-      cleaned = cleaned.replace(',', '.');
-      const dotCount = (cleaned.match(/\./g) || []).length;
-      if (dotCount > 1) {
-        const lastDot = cleaned.lastIndexOf('.');
-        cleaned = `${cleaned.slice(0, lastDot).replace(/\./g, '')}${cleaned.slice(
-          lastDot
-        )}`;
+      const lastComma = cleaned.lastIndexOf(',');
+      const lastDot = cleaned.lastIndexOf('.');
+      if (lastComma !== -1 && lastDot === -1) {
+        const fraction = cleaned.slice(lastComma + 1);
+        if (fraction.length === 3) {
+          cleaned = cleaned.replace(/,/g, '');
+        } else {
+          cleaned = cleaned.replace(/,/g, '.');
+        }
+      } else if (lastDot !== -1 && lastComma === -1) {
+        const fraction = cleaned.slice(lastDot + 1);
+        if (fraction.length === 3) {
+          cleaned = cleaned.replace(/\./g, '');
+        }
+      } else if (lastComma !== -1 && lastDot !== -1) {
+        const decimalIndex = Math.max(lastComma, lastDot);
+        const integerPart = cleaned.slice(0, decimalIndex).replace(/[.,]/g, '');
+        const fractionalPart = cleaned.slice(decimalIndex + 1).replace(/[.,]/g, '');
+        cleaned = `${integerPart}.${fractionalPart}`;
+      } else {
+        cleaned = cleaned.replace(/[.,]/g, '');
       }
     }
     const parsed = Number(cleaned.replace(/[^\d.-]/g, ''));
@@ -643,7 +807,13 @@ console.log('🧩 content_gate.js carregado');
   }
 
   let gateHistoryToggleState = null;
+  let gateHistoryToggleAt = 0;
+  let gateHistoryToggleTimer = null;
   function refreshGateTradeHistory() {
+    const now = Date.now();
+    if (now - gateHistoryToggleAt < 1500) {
+      return;
+    }
     const oneDayButton = document.querySelector(
       '#orderPanel > div > div.flex.flex-col.w-full.h-full.relative.box-border.overflow-auto.transition-height.duration-400.ease-linear.text-body-s > div.flex.items-center.my-3.mx-4 > div.flex.gap-2 > div:nth-child(1)'
     );
@@ -651,12 +821,18 @@ console.log('🧩 content_gate.js carregado');
       '#orderPanel > div > div.flex.flex-col.w-full.h-full.relative.box-border.overflow-auto.transition-height.duration-400.ease-linear.text-body-s > div.flex.items-center.my-3.mx-4 > div.flex.gap-2 > div:nth-child(2)'
     );
     if (oneDayButton && sevenDayButton) {
-      if (!gateHistoryToggleState) {
-        gateHistoryToggleState = '1d';
+      if (gateHistoryToggleTimer) {
+        clearTimeout(gateHistoryToggleTimer);
       }
-      gateHistoryToggleState = gateHistoryToggleState === '1d' ? '7d' : '1d';
-      const target = gateHistoryToggleState === '1d' ? oneDayButton : sevenDayButton;
-      target.click();
+      gateHistoryToggleTimer = setTimeout(() => {
+        if (!gateHistoryToggleState) {
+          gateHistoryToggleState = '1d';
+        }
+        gateHistoryToggleState = gateHistoryToggleState === '1d' ? '7d' : '1d';
+        const target = gateHistoryToggleState === '1d' ? oneDayButton : sevenDayButton;
+        target.click();
+        gateHistoryToggleAt = Date.now();
+      }, 1000);
       return;
     }
     const checkboxInput = document.querySelector('#mantine-7tgjuotkn');
@@ -680,7 +856,13 @@ console.log('🧩 content_gate.js carregado');
     const target = checkboxInput || checkboxRoot;
     if (!target) return;
     if (current !== gateHistoryToggleState) {
-      target.click();
+      if (gateHistoryToggleTimer) {
+        clearTimeout(gateHistoryToggleTimer);
+      }
+      gateHistoryToggleTimer = setTimeout(() => {
+        target.click();
+        gateHistoryToggleAt = Date.now();
+      }, 1000);
     }
   }
 
@@ -817,10 +999,22 @@ console.log('🧩 content_gate.js carregado');
       ) {
         reasons.push('GLOBAL');
       }
-      status.textContent =
+      const nextMessage =
         reasons.length > 0
           ? `LIMITES: ${reasons.join(', ')} atingido(s)`
           : 'LIMITES: OK';
+      status.textContent = nextMessage;
+      if (nextMessage !== lastLimitStatusMessage) {
+        if (reasons.length > 0) {
+          broadcastLogEntry(
+            `Limites atingidos: ${reasons.join(', ')}.`,
+            'warn'
+          );
+        } else if (lastLimitStatusMessage && lastLimitStatusMessage !== 'LIMITES: OK') {
+          broadcastLogEntry('Limites normalizados.', 'info');
+        }
+        lastLimitStatusMessage = nextMessage;
+      }
     };
     const renderWith = (
       gateQty,
@@ -828,13 +1022,14 @@ console.log('🧩 content_gate.js carregado');
       gateAvg,
       mexcAvg
     ) => {
-      const formatQty = (value) =>
-        Number.isFinite(value)
-          ? value.toLocaleString('pt-BR', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2
-            })
-          : '--';
+      const formatQty = (value) => {
+        if (!Number.isFinite(value)) return '--';
+        const floored = Math.floor(value * 100) / 100;
+        return floored.toLocaleString('pt-BR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      };
       const formatAvg = (value) =>
         Number.isFinite(value) ? value.toFixed(6) : '--';
       const formatSpread = (value) =>
@@ -905,15 +1100,15 @@ console.log('🧩 content_gate.js carregado');
           const normalizedAsset = fallback.asset.toUpperCase();
           exposureState.asset = normalizedAsset;
           updateActiveAssetLabel();
-          const trades = extractGateTrades();
+          const fallbackTrades = extractGateTrades();
           const avgPrice = computeGateAveragePrice(
             normalizedAsset,
             fallback.qty,
-            trades
+            fallbackTrades
           );
           gateQty = fallback.qty;
           gateAvg = Number.isFinite(avgPrice) ? avgPrice : gateAvg;
-          persistExposureSnapshot(EXCHANGE, normalizedAsset, fallback.qty, avgPrice);
+          persistExposureSnapshot(EXCHANGE, normalizedAsset, gateQty, avgPrice);
         }
       }
       const exposureStatus = document.getElementById('exposureStatus');
@@ -950,6 +1145,9 @@ console.log('🧩 content_gate.js carregado');
     if (payload.close) {
       executionLog.close = payload.close;
     }
+    if (payload.logEntry) {
+      appendLogEntry(payload.logEntry);
+    }
     updatePositionPanel(payload.snapshot || {});
   }
 
@@ -976,13 +1174,24 @@ console.log('🧩 content_gate.js carregado');
   function startDomLiquidityPolling() {
     const selectors = {
       askPrice:
-        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.bBfmlX',
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__PriceItem-sc-802dfbfa-4.fACNWh, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.bBfmlX',
       askVolume:
-        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE',
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__AmountItem-sc-802dfbfa-6.IXbhq, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE',
       bidPrice:
-        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.khGgGv',
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__PriceItem-sc-802dfbfa-4.ecPgvl, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.khGgGv',
       bidVolume:
-        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE'
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-802dfbfa-6.IXbhq, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE'
+    };
+
+    const fallbackSelectors = {
+      askPrice:
+        '#trade-container-spot-orderbook-asks .orderbook-list-item:nth-child(1) .price, #trade-container-spot-orderbook-asks .orderbook-row:nth-child(1) .price, #trade-container-spot-orderbook-asks li:nth-child(1) .price',
+      askVolume:
+        '#trade-container-spot-orderbook-asks .orderbook-list-item:nth-child(1) .amount, #trade-container-spot-orderbook-asks .orderbook-row:nth-child(1) .amount, #trade-container-spot-orderbook-asks li:nth-child(1) .amount',
+      bidPrice:
+        '#trade-container-spot-orderbook-bids .orderbook-list-item:nth-child(1) .price, #trade-container-spot-orderbook-bids .orderbook-row:nth-child(1) .price, #trade-container-spot-orderbook-bids li:nth-child(1) .price',
+      bidVolume:
+        '#trade-container-spot-orderbook-bids .orderbook-list-item:nth-child(1) .amount, #trade-container-spot-orderbook-bids .orderbook-row:nth-child(1) .amount, #trade-container-spot-orderbook-bids li:nth-child(1) .amount'
     };
 
     const last = {
@@ -1031,16 +1240,20 @@ console.log('🧩 content_gate.js carregado');
 
     const updateFromDom = () => {
       const askPrice = parseNumber(
-        document.querySelector(selectors.askPrice)?.textContent
+        document.querySelector(selectors.askPrice)?.textContent ??
+          document.querySelector(fallbackSelectors.askPrice)?.textContent
       );
       const askVolume = parseNumber(
-        document.querySelector(selectors.askVolume)?.textContent
+        document.querySelector(selectors.askVolume)?.textContent ??
+          document.querySelector(fallbackSelectors.askVolume)?.textContent
       );
       const bidPrice = parseNumber(
-        document.querySelector(selectors.bidPrice)?.textContent
+        document.querySelector(selectors.bidPrice)?.textContent ??
+          document.querySelector(fallbackSelectors.bidPrice)?.textContent
       );
       const bidVolume = parseNumber(
-        document.querySelector(selectors.bidVolume)?.textContent
+        document.querySelector(selectors.bidVolume)?.textContent ??
+          document.querySelector(fallbackSelectors.bidVolume)?.textContent
       );
 
       applyDomValues({ askPrice, askVolume, bidPrice, bidVolume });
@@ -1097,6 +1310,7 @@ console.log('🧩 content_gate.js carregado');
     if (testStatus) {
       testStatus.textContent = `TESTE: ${message}`;
     }
+    broadcastLogEntry(`Falha na execução: ${message}`, 'error');
     if (window.alert) {
       window.alert(message);
     }
@@ -1285,7 +1499,8 @@ console.log('🧩 content_gate.js carregado');
       }
 
       const autoExecutionEnabled = !!settings.enableLiveExecution;
-      if (autoExecutionEnabled) {
+      const rebalanceEnabled = !!settings.enableAutoRebalance;
+      if (autoExecutionEnabled || rebalanceEnabled) {
         const executionModes = settings.executionModes || {};
         const openModeEnabled = !!executionModes.openEnabled;
         const closeModeEnabled = !!executionModes.closeEnabled;
@@ -1333,6 +1548,8 @@ console.log('🧩 content_gate.js carregado');
           now - lastAutoExecution.open >= cooldownMs;
         const closeCooldownOk =
           now - lastAutoExecution.close >= cooldownMs;
+        const rebalanceCooldownOk =
+          now - lastAutoExecution.rebalance >= cooldownMs;
         const currentGateQty = Math.abs(Number(exposureState.gateQty) || 0);
         const currentMexcQty = Math.abs(Number(exposureState.mexcQty) || 0);
         const projectedGateQty = currentGateQty + Number(settings.spotVolume || 0);
@@ -1390,13 +1607,110 @@ console.log('🧩 content_gate.js carregado');
           Number.isFinite(openAt) &&
           now - openAt >= timeTargetMinutes * 60 * 1000;
         const closeForced = profitPercentOk || profitUsdtOk || timeOk;
-        const rebalanceEnabled = !!settings.enableAutoRebalance;
+        const rebalanceDelta =
+          Number.isFinite(currentGateQty) && Number.isFinite(currentMexcQty)
+            ? currentMexcQty - currentGateQty
+            : null;
         const rebalanceNeeded =
           rebalanceEnabled &&
-          Number.isFinite(currentGateQty) &&
-          Number.isFinite(currentMexcQty) &&
-          Math.abs(currentGateQty - currentMexcQty) > 0.0001;
+          Number.isFinite(rebalanceDelta) &&
+          Math.abs(rebalanceDelta) > 0.0001;
+        let rebalanceHandled = false;
+
+        if (rebalanceNeeded) {
+          const targetExchange = rebalanceDelta > 0 ? 'GATE' : 'MEXC';
+          const deltaVolume = Math.abs(rebalanceDelta);
+          if (!rebalanceCooldownOk) {
+            broadcastLogEntry(
+              `Auto-rebalance aguardando cooldown. Diferença atual: ${formatTokenQtyForLog(deltaVolume)} tokens.`,
+              'warn'
+            );
+            rebalanceHandled = true;
+          } else if (targetExchange === 'GATE') {
+            if (!isGateNotionalOk(deltaVolume, gateAskPx)) {
+              broadcastLogEntry(
+                `Auto-rebalance ignorado: ordem na Gate abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatTokenQtyForLog(
+                  deltaVolume
+                )} tokens).`,
+                'warn'
+              );
+              rebalanceHandled = true;
+            } else {
+              const payload = {
+                spotVolume: deltaVolume,
+                futuresContracts: 0,
+                pairGate: data.pairGate || '',
+                pairMexc: data.pairMexc || '',
+                modes: {
+                  openEnabled: true,
+                  closeEnabled: false
+                },
+                submitDelayMs: settings.submitDelayMs
+              };
+              const group = normalizeGroup(
+                document.getElementById('arbGroup')?.value || currentGroup
+              );
+              broadcastLogEntry(
+                `Auto-rebalance: comprando ${formatTokenQtyForLog(
+                  deltaVolume
+                )} tokens na Gate para igualar a MEXC.`,
+                'success'
+              );
+              sendRuntimeMessage({
+                type: 'SYNC_LIVE_EXECUTION',
+                payload,
+                group
+              }).then((response) => {
+                if (response?.status) updateLinkStatus(response.status);
+              });
+              lastAutoExecution.rebalance = now;
+              refreshGateTradeHistory();
+              rebalanceHandled = true;
+            }
+          } else if (targetExchange === 'MEXC') {
+            const normalizedVolume = floorToStep(deltaVolume, MEXC_MIN_QTY_STEP);
+            if (normalizedVolume <= 0) {
+              broadcastLogEntry(
+                `Auto-rebalance ignorado: diferença abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens na MEXC.`,
+                'warn'
+              );
+              rebalanceHandled = true;
+            } else {
+              const payload = {
+                spotVolume: 0,
+                futuresContracts: normalizedVolume,
+                pairGate: data.pairGate || '',
+                pairMexc: data.pairMexc || '',
+                modes: {
+                  openEnabled: true,
+                  closeEnabled: false
+                },
+                submitDelayMs: settings.submitDelayMs
+              };
+              const group = normalizeGroup(
+                document.getElementById('arbGroup')?.value || currentGroup
+              );
+              broadcastLogEntry(
+                `Auto-rebalance: abrindo ${formatTokenQtyForLog(
+                  normalizedVolume
+                )} contratos na MEXC para igualar a Gate.`,
+                'success'
+              );
+              sendRuntimeMessage({
+                type: 'SYNC_LIVE_EXECUTION',
+                payload,
+                group
+              }).then((response) => {
+                if (response?.status) updateLinkStatus(response.status);
+              });
+              lastAutoExecution.rebalance = now;
+              rebalanceHandled = true;
+            }
+          }
+        }
+
         const shouldAutoOpen =
+          autoExecutionEnabled &&
           openModeEnabled &&
           openEligible &&
           openSpreadOk &&
@@ -1404,13 +1718,14 @@ console.log('🧩 content_gate.js carregado');
           openCooldownOk &&
           exposureOk;
         const shouldAutoClose =
+          autoExecutionEnabled &&
           closeModeEnabled &&
           hasCloseExposure &&
           closeEligible &&
-          (closeForced || rebalanceNeeded || (closeSpreadOk && closeLiquidityOk)) &&
+          (closeForced || (closeSpreadOk && closeLiquidityOk)) &&
           closeCooldownOk;
 
-        if (shouldAutoOpen || shouldAutoClose) {
+        if (!rebalanceHandled && (shouldAutoOpen || shouldAutoClose)) {
           const spotVolume = Number(settings.spotVolume);
           const useTopLiquidity = !!settings.limitToTopLiquidity;
           const remainingPerExchange =
@@ -1438,39 +1753,54 @@ console.log('🧩 content_gate.js carregado');
             : spotVolume;
           if (shouldAutoOpen) {
             const selectedVolume = openTopVolume;
-            const gateAvailable = Number(exposureState.gateQty);
-            const gateSpotVolume =
-              Number.isFinite(gateAvailable) &&
-              gateAvailable > 0 &&
-              gateAvailable < selectedVolume
-                ? gateAvailable
-                : selectedVolume;
-            if (
-              Number.isFinite(selectedVolume) &&
-              selectedVolume > 0 &&
-              Number.isFinite(gateSpotVolume) &&
-              gateSpotVolume > 0
-            ) {
+            const normalizedVolume = floorToStep(
+              selectedVolume,
+              MEXC_MIN_QTY_STEP
+            );
+            if (normalizedVolume <= 0) {
+              broadcastLogEntry(
+                `Ordem OPEN ignorada: volume abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens.`,
+                'warn'
+              );
+            } else if (!isGateNotionalOk(normalizedVolume, gateAskPx)) {
+              broadcastLogEntry(
+                `Ordem OPEN ignorada: valor abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatTokenQtyForLog(
+                  normalizedVolume
+                )} tokens).`,
+                'warn'
+              );
+            } else {
+              const reason = buildOpenDecisionReason(
+                useTopLiquidity,
+                gateAskQty,
+                mexcBidQty
+              );
+              broadcastLogEntry(
+                `Compra de ${formatTokenQtyForLog(
+                  normalizedVolume
+                )} tokens: ${reason}`,
+                'info'
+              );
               const logPayload = {
                 open: {
                   gatePrice: gateAskPx,
                   mexcPrice: mexcBidPx,
-                  spotVolume: gateSpotVolume,
-                  futuresContracts: selectedVolume,
+                  spotVolume: normalizedVolume,
+                  futuresContracts: normalizedVolume,
                   spread: spreadOpen,
                   at: now
                 },
                 close: null,
                 snapshot: {
-                  spotVolume: gateSpotVolume,
-                  futuresContracts: selectedVolume
+                  spotVolume: normalizedVolume,
+                  futuresContracts: normalizedVolume
                 }
               };
               syncExecutionLog(logPayload);
               sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
               const payload = {
-                spotVolume: gateSpotVolume,
-                futuresContracts: selectedVolume,
+                spotVolume: normalizedVolume,
+                futuresContracts: normalizedVolume,
                 pairGate: data.pairGate || '',
                 pairMexc: data.pairMexc || '',
                 modes: {
@@ -1481,6 +1811,15 @@ console.log('🧩 content_gate.js carregado');
               };
               const group = normalizeGroup(
                 document.getElementById('arbGroup')?.value || currentGroup
+              );
+              broadcastLogEntry(
+                `Ordem OPEN enviada: ${formatTokenQtyForLog(
+                  normalizedVolume
+                )} tokens (Gate @ ${formatNumber(
+                  gateAskPx,
+                  6
+                )}).`,
+                'success'
               );
               sendRuntimeMessage({
                 type: 'SYNC_LIVE_EXECUTION',
@@ -1495,39 +1834,111 @@ console.log('🧩 content_gate.js carregado');
           }
           if (shouldAutoClose) {
             const selectedVolume = closeTopVolume;
-            const gateAvailable = Number(exposureState.gateQty);
-            const gateSpotVolume =
-              Number.isFinite(gateAvailable) &&
-              gateAvailable > 0 &&
-              gateAvailable < selectedVolume
-                ? gateAvailable
-                : selectedVolume;
+            const gateAvailable = Math.abs(Number(exposureState.gateQty) || 0);
+            const effectiveGateBidPx = Number.isFinite(gateBidPx)
+              ? gateBidPx
+              : domBookCache.gate.bidPrice;
+            const minGateReserveTokens =
+              Number.isFinite(effectiveGateBidPx) && effectiveGateBidPx > 0
+                ? MIN_GATE_ORDER_USDT / effectiveGateBidPx
+                : 0;
+            let gateSpotVolume;
+            const wantsFullClose = selectedVolume >= gateAvailable;
+            if (wantsFullClose && isGateNotionalOk(gateAvailable, effectiveGateBidPx)) {
+              gateSpotVolume = gateAvailable;
+            } else {
+              gateSpotVolume = Math.min(selectedVolume, gateAvailable);
+            }
+            let closeContracts = Math.min(gateSpotVolume, closePositionQty);
+            const allowFullClose =
+              wantsFullClose &&
+              isGateNotionalOk(gateAvailable, effectiveGateBidPx) &&
+              closeTopVolume >= gateAvailable &&
+              closeTopVolume >= closePositionQty;
             if (
-              Number.isFinite(selectedVolume) &&
-              selectedVolume > 0 &&
-              Number.isFinite(gateSpotVolume) &&
-              gateSpotVolume > 0
+              !allowFullClose &&
+              Number.isFinite(minGateReserveTokens) &&
+              minGateReserveTokens > 0 &&
+              closeContracts > gateAvailable - minGateReserveTokens
             ) {
-              const closeContracts = Math.min(selectedVolume, closePositionQty);
+              const maxClosable = Math.max(gateAvailable - minGateReserveTokens, 0);
+              const adjustedClose = floorToStep(maxClosable, MEXC_MIN_QTY_STEP);
+              if (adjustedClose <= 0) {
+                broadcastLogEntry(
+                  `Ordem CLOSE ajustada para manter saldo mínimo na Gate (${formatTokenQtyForLog(
+                    minGateReserveTokens
+                  )} tokens).`,
+                  'info'
+                );
+              } else if (adjustedClose < closeContracts) {
+                closeContracts = adjustedClose;
+                broadcastLogEntry(
+                  `Ordem CLOSE ajustada para manter saldo mínimo na Gate (${formatTokenQtyForLog(
+                    minGateReserveTokens
+                  )} tokens).`,
+                  'info'
+                );
+              }
+            }
+            if (!allowFullClose) {
+              closeContracts = floorToStep(closeContracts, MEXC_MIN_QTY_STEP);
+            }
+            const mexcContracts = allowFullClose
+              ? Math.min(closePositionQty, ceilToStep(closeContracts, MEXC_MIN_QTY_STEP))
+              : Math.min(closePositionQty, closeContracts);
+            if (mexcContracts > closeContracts) {
+              broadcastLogEntry(
+                `Ordem CLOSE ajustada para a MEXC: ${formatTokenQtyForLog(
+                  closeContracts
+                )} tokens na Gate / ${formatTokenQtyForLog(
+                  mexcContracts
+                )} contratos na MEXC.`,
+                'info'
+              );
+            }
+            if (mexcContracts < MEXC_MIN_QTY_STEP) {
+              broadcastLogEntry(
+                `Ordem CLOSE ignorada: volume abaixo do mínimo de ${MEXC_MIN_QTY_STEP} tokens ou reserva mínima na Gate.`,
+                'warn'
+              );
+            } else if (!isGateNotionalOk(closeContracts, effectiveGateBidPx)) {
+              broadcastLogEntry(
+                `Ordem CLOSE ignorada: valor abaixo de ${MIN_GATE_ORDER_USDT} USDT (${formatTokenQtyForLog(
+                  closeContracts
+                )} tokens).`,
+                'warn'
+              );
+            } else {
+              const reason = buildCloseDecisionReason(
+                useTopLiquidity,
+                gateBidQty,
+                mexcAskQty
+              );
+              broadcastLogEntry(
+                `Fechamento de ${formatTokenQtyForLog(
+                  closeContracts
+                )} tokens: ${reason}`,
+                'info'
+              );
               const logPayload = {
                 open: null,
                 close: {
                   gatePrice: gateBidPx,
                   mexcPrice: mexcAskPx,
-                  spotVolume: gateSpotVolume,
-                  futuresContracts: closeContracts,
+                  spotVolume: closeContracts,
+                  futuresContracts: mexcContracts,
                   spread: spreadClose
                 },
                 snapshot: {
-                  spotVolume: gateSpotVolume,
-                  futuresContracts: closeContracts
+                  spotVolume: closeContracts,
+                  futuresContracts: mexcContracts
                 }
               };
               syncExecutionLog(logPayload);
               sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: logPayload });
               const payload = {
-                spotVolume: gateSpotVolume,
-                futuresContracts: closeContracts,
+                spotVolume: closeContracts,
+                futuresContracts: mexcContracts,
                 pairGate: data.pairGate || '',
                 pairMexc: data.pairMexc || '',
                 modes: {
@@ -1538,6 +1949,16 @@ console.log('🧩 content_gate.js carregado');
               };
               const group = normalizeGroup(
                 document.getElementById('arbGroup')?.value || currentGroup
+              );
+              broadcastLogEntry(
+                `Ordem CLOSE enviada: ${formatNumber(
+                  closeContracts,
+                  4
+                )} tokens (Gate @ ${formatNumber(
+                  gateBidPx,
+                  6
+                )}) / ${formatNumber(mexcContracts, 4)} contratos (MEXC).`,
+                'success'
               );
               sendRuntimeMessage({
                 type: 'SYNC_LIVE_EXECUTION',

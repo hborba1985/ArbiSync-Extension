@@ -6,6 +6,11 @@ console.log('🧩 content_mexc.js carregado');
   const OVERLAY_ID = 'arb-assistant-overlay-wrapper';
   const EXCHANGE = 'MEXC';
   const GROUP_STORAGE_KEY = 'arbsync_group';
+  const logEntries = [];
+  const LOG_MAX_ENTRIES = 200;
+  const LOG_THROTTLE_MS = 2000;
+  const lastLogByMessage = new Map();
+  const OVERLAY_ZOOM_STORAGE_KEY = 'arbsync_overlay_zoom';
   let lastDomBookUpdate = 0;
   const domBookCache = {
     gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
@@ -93,7 +98,10 @@ console.log('🧩 content_mexc.js carregado');
           }
         });
         setupMinimize();
+        setupOverlayZoom();
+        setupTabs();
         registerTab();
+        updateLogEmptyState();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -104,6 +112,79 @@ console.log('🧩 content_mexc.js carregado');
     const el = document.getElementById(id);
     if (!el) return;
     el.textContent = value;
+  }
+
+  function setupTabs() {
+    const tabButtons = Array.from(
+      document.querySelectorAll('#arb-panel .panel-tab[data-tab-target]')
+    );
+    const tabContents = Array.from(
+      document.querySelectorAll('#arb-panel .panel-tab-content')
+    );
+    if (!tabButtons.length || !tabContents.length) return;
+
+    const activateTab = (target) => {
+      tabButtons.forEach((btn) => {
+        btn.classList.toggle('is-active', btn.dataset.tabTarget === target);
+      });
+      tabContents.forEach((content) => {
+        content.classList.toggle(
+          'is-active',
+          content.dataset.tabContent === target
+        );
+      });
+    };
+
+    tabButtons.forEach((btn) => {
+      btn.addEventListener('click', () => {
+        activateTab(btn.dataset.tabTarget);
+      });
+    });
+
+    activateTab(tabButtons.find((btn) => btn.classList.contains('is-active'))?.dataset.tabTarget || 'trading');
+  }
+
+  function updateLogEmptyState() {
+    const emptyState = document.getElementById('arb-log-empty');
+    const list = document.getElementById('arb-log-list');
+    if (!emptyState || !list) return;
+    emptyState.style.display = list.children.length ? 'none' : 'block';
+  }
+
+  function appendLogEntry(entry) {
+    if (!entry) return;
+    const list = document.getElementById('arb-log-list');
+    if (!list) return;
+    const time = new Date(entry.at || Date.now());
+    const timeLabel = time.toLocaleTimeString('pt-BR');
+    const item = document.createElement('div');
+    item.className = `log-entry ${entry.level ? `is-${entry.level}` : ''}`.trim();
+    item.innerHTML = `<span class="log-time">${timeLabel}</span><span class="log-message">${entry.message}</span>`;
+    list.insertBefore(item, list.firstChild);
+    logEntries.push(entry);
+    while (logEntries.length > LOG_MAX_ENTRIES) {
+      logEntries.shift();
+      list.removeChild(list.lastChild);
+    }
+    updateLogEmptyState();
+  }
+
+  function broadcastLogEntry(message, level = 'info') {
+    if (!message) return;
+    const now = Date.now();
+    const lastAt = lastLogByMessage.get(message);
+    if (Number.isFinite(lastAt) && now - lastAt < LOG_THROTTLE_MS) {
+      return;
+    }
+    lastLogByMessage.set(message, now);
+    const entry = {
+      message,
+      level,
+      at: Date.now(),
+      source: EXCHANGE
+    };
+    appendLogEntry(entry);
+    sendRuntimeMessage({ type: 'EXECUTION_LOG', payload: { logEntry: entry } });
   }
 
   function setupMinimize() {
@@ -134,6 +215,33 @@ console.log('🧩 content_mexc.js carregado');
     });
 
     applyState(false);
+  }
+
+  function applyOverlayZoom(scale) {
+    const panel = document.getElementById('arb-panel');
+    if (!panel) return;
+    panel.style.transform = `scale(${scale})`;
+    panel.style.transformOrigin = 'top right';
+  }
+
+  function setupOverlayZoom() {
+    const panel = document.getElementById('arb-panel');
+    const zoomInput = document.getElementById('overlayZoom');
+    const zoomValue = document.getElementById('overlayZoomValue');
+    if (!panel || !zoomInput || !zoomValue) return;
+    const stored = Number(localStorage.getItem(OVERLAY_ZOOM_STORAGE_KEY));
+    const initial = Number.isFinite(stored) && stored > 0 ? stored : 100;
+    zoomInput.value = String(initial);
+    zoomValue.textContent = `${initial}%`;
+    applyOverlayZoom(initial / 100);
+
+    zoomInput.addEventListener('input', () => {
+      const next = Number(zoomInput.value);
+      if (!Number.isFinite(next)) return;
+      zoomValue.textContent = `${next}%`;
+      localStorage.setItem(OVERLAY_ZOOM_STORAGE_KEY, String(next));
+      applyOverlayZoom(next / 100);
+    });
   }
 
   function sendCommand(command) {
@@ -679,13 +787,14 @@ console.log('🧩 content_mexc.js carregado');
       gateAvg,
       mexcAvg
     ) => {
-      const formatQty = (value) =>
-        Number.isFinite(value)
-          ? value.toLocaleString('pt-BR', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2
-            })
-          : '--';
+      const formatQty = (value) => {
+        if (!Number.isFinite(value)) return '--';
+        const floored = Math.floor(value * 100) / 100;
+        return floored.toLocaleString('pt-BR', {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        });
+      };
       const formatAvg = (value) =>
         Number.isFinite(value) ? value.toFixed(6) : '--';
       const formatSpread = (value) =>
@@ -823,6 +932,9 @@ console.log('🧩 content_mexc.js carregado');
     }
     if (payload.close) {
       executionLog.close = payload.close;
+    }
+    if (payload.logEntry) {
+      appendLogEntry(payload.logEntry);
     }
     updatePositionPanel(payload.snapshot || {});
   }
@@ -986,6 +1098,7 @@ console.log('🧩 content_mexc.js carregado');
     if (testStatus) {
       testStatus.textContent = `TESTE: ${message}`;
     }
+    broadcastLogEntry(`Falha na execução: ${message}`, 'error');
     if (window.alert) {
       window.alert(message);
     }

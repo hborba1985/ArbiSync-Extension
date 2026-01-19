@@ -3,6 +3,17 @@
     <div class="title">ARBITRAGEM DETECTADA <span id="activeAsset">--</span></div>
     <button class="panel-close" id="minimizeOverlayBtn" type="button" aria-label="Minimizar overlay">✕</button>
   </div>
+  <div class="panel-zoom">
+    <label for="overlayZoom">Zoom do overlay</label>
+    <input id="overlayZoom" type="range" min="70" max="130" step="5" value="100" />
+    <span id="overlayZoomValue">100%</span>
+  </div>
+  <div class="panel-tabs" role="tablist" aria-label="Navegação do painel">
+    <button class="panel-tab is-active" type="button" data-tab-target="trading">TRADING</button>
+    <button class="panel-tab" type="button" data-tab-target="log">LOG</button>
+  </div>
+  <div class="panel-tab-contents">
+    <div class="panel-tab-content is-active" data-tab-content="trading">
 
   <div class="section-title">Painel da posição</div>
   <div class="position-summary">
@@ -236,7 +247,7 @@
     </div>
   </details>
 
-  <details class="accordion">
+      <details class="accordion">
     <summary>Performance</summary>
     <div class="accordion-body">
       <div class="field">
@@ -250,32 +261,40 @@
     </div>
   </details>
 
-  <details class="accordion">
-    <summary>Teste manual</summary>
-    <div class="accordion-body">
-      <div class="field">
-        <label for="testVolume">Volume teste</label>
-        <input id="testVolume" type="number" step="0.0001" placeholder="Ex: 25" />
-      </div>
-      <button id="testBtn" class="ghost">Teste de execução</button>
-      <div class="field checkbox">
-        <label>
-          <input id="syncExecutionEnabled" type="checkbox" />
-          Executar testes simultaneamente (SPOT + FUTUROS)
-        </label>
-      </div>
-      <div class="field">
-        <label for="arbGroup">Grupo da arbitragem</label>
-        <input id="arbGroup" type="text" placeholder="Ex: BTC-GATE-MEXC" />
-      </div>
-      <div class="button-row">
-        <button id="linkTabsBtn" class="ghost">Vincular aba atual</button>
-        <button id="usePairBtn" class="ghost">Usar par atual</button>
-      </div>
-      <div class="status" id="linkStatus">LINK: aguardando</div>
-      <div class="status" id="testStatus">TESTE: --</div>
+      <details class="accordion">
+        <summary>Teste manual</summary>
+        <div class="accordion-body">
+          <div class="field">
+            <label for="testVolume">Volume teste</label>
+            <input id="testVolume" type="number" step="0.0001" placeholder="Ex: 25" />
+          </div>
+          <button id="testBtn" class="ghost">Teste de execução</button>
+          <div class="field checkbox">
+            <label>
+              <input id="syncExecutionEnabled" type="checkbox" />
+              Executar testes simultaneamente (SPOT + FUTUROS)
+            </label>
+          </div>
+          <div class="field">
+            <label for="arbGroup">Grupo da arbitragem</label>
+            <input id="arbGroup" type="text" placeholder="Ex: BTC-GATE-MEXC" />
+          </div>
+          <div class="button-row">
+            <button id="linkTabsBtn" class="ghost">Vincular aba atual</button>
+            <button id="usePairBtn" class="ghost">Usar par atual</button>
+          </div>
+          <div class="status" id="linkStatus">LINK: aguardando</div>
+          <div class="status" id="testStatus">TESTE: --</div>
+        </div>
+      </details>
     </div>
-  </details>
+    <div class="panel-tab-content" data-tab-content="log">
+      <div class="log-panel">
+        <div class="log-empty" id="arb-log-empty">Nenhum log registrado ainda.</div>
+        <div class="log-list" id="arb-log-list" aria-live="polite"></div>
+      </div>
+    </div>
+  </div>
   <div class="resizer" aria-hidden="true"></div>
 </div>
 <button id="arb-minimized-toggle" class="arb-minimized-toggle" aria-label="Mostrar overlay">ARB</button>

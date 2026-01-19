@@ -202,6 +202,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       status.mexcTabs.forEach((tabId) => targetTabs.add(tabId));
     } else if (sender.tab?.id) {
       targetTabs.add(sender.tab.id);
+      const senderInfo = tabLinks.get(sender.tab.id);
+      const senderExchange = senderInfo?.exchange;
+      if (senderExchange) {
+        for (const [tabId, info] of tabLinks.entries()) {
+          if (!info) continue;
+          if (info.group) continue;
+          if (info.exchange === senderExchange) continue;
+          targetTabs.add(tabId);
+        }
+      }
     }
 
     if (!group) {

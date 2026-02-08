@@ -722,6 +722,86 @@ console.log('🧩 content_mexc.js carregado');
     return { qty, asset, avgPrice };
   }
 
+  function normalizeMexcContractAsset(text) {
+    if (!text) return null;
+    const cleaned = String(text)
+      .replace(/perp[eé]tuo/gi, '')
+      .replace(/perp/gi, '')
+      .trim();
+    const withoutSpace = cleaned.replace(/\s+/g, '');
+    if (withoutSpace.includes('USDT')) {
+      return withoutSpace.split('USDT')[0].toUpperCase();
+    }
+    if (withoutSpace.includes('/')) {
+      return withoutSpace.split('/')[0].toUpperCase();
+    }
+    return cleaned.split(' ')[0]?.toUpperCase() || null;
+  }
+
+  function extractMexcTrades() {
+    const rows = Array.from(
+      document.querySelectorAll(
+        '#mexc-web-inspection-futures-exchange-history-order table tbody tr'
+      )
+    );
+    return rows.map((row) => {
+      const assetText =
+        row.querySelector('td.ant-table-cell-fix-left span')?.textContent?.trim() ||
+        row.querySelector('td.ant-table-cell-fix-left-last span')?.textContent?.trim() ||
+        '';
+      const timeText =
+        row.querySelector('td:nth-child(3) span')?.textContent?.trim() || '';
+      const sideText =
+        row.querySelector('td:nth-child(4) span')?.textContent?.trim() || '';
+      const qtyText =
+        row.querySelector('td:nth-child(6) span span')?.textContent?.trim() || '';
+      const priceText =
+        row.querySelector('td:nth-child(9) span')?.textContent?.trim() || '';
+      const asset = normalizeMexcContractAsset(assetText);
+      const price = parseLocaleNumber(priceText);
+      const qty = parseLocaleNumber(qtyText);
+      return {
+        asset,
+        side: sideText,
+        price,
+        qty,
+        time: timeText
+      };
+    });
+  }
+
+  function computeMexcAveragePrice(asset, exposureQty, trades) {
+    if (!Number.isFinite(exposureQty) || exposureQty <= 0) return null;
+    let remaining = exposureQty;
+    let cost = 0;
+    let filled = 0;
+    for (const trade of trades) {
+      if (!trade || trade.asset !== asset) continue;
+      if (!Number.isFinite(trade.qty) || !Number.isFinite(trade.price)) continue;
+      const side = trade.side.toLowerCase();
+      const isOpenShort =
+        side.includes('vender short') ||
+        side.includes('abrir short') ||
+        side.includes('sell short');
+      const isCloseShort =
+        side.includes('fechar short') ||
+        side.includes('comprar') ||
+        side.includes('close short');
+      if (isCloseShort) {
+        remaining += trade.qty;
+        continue;
+      }
+      if (!isOpenShort) continue;
+      const used = Math.min(trade.qty, remaining);
+      cost += used * trade.price;
+      filled += used;
+      remaining -= used;
+      if (remaining <= 0) break;
+    }
+    if (filled <= 0) return null;
+    return cost / filled;
+  }
+
   async function persistExposureSnapshot(exchange, asset, qty, avgPrice) {
     if (!asset || !Number.isFinite(qty)) return;
     const current = (await safeStorageGet('arbsync_exposure')) || {};
@@ -865,13 +945,19 @@ console.log('🧩 content_mexc.js carregado');
         if (fallback) {
           exposureState.asset = fallback.asset;
           updateActiveAssetLabel();
+          const trades = extractMexcTrades();
+          const avgPrice = computeMexcAveragePrice(
+            fallback.asset.toUpperCase(),
+            fallback.qty,
+            trades
+          );
           effectiveMexcQty = fallback.qty;
-          effectiveMexcAvg = fallback.avgPrice;
+          effectiveMexcAvg = Number.isFinite(avgPrice) ? avgPrice : fallback.avgPrice;
           persistExposureSnapshot(
             EXCHANGE,
             fallback.asset,
             fallback.qty,
-            fallback.avgPrice
+            Number.isFinite(avgPrice) ? avgPrice : fallback.avgPrice
           );
         }
       }
@@ -951,11 +1037,17 @@ console.log('🧩 content_mexc.js carregado');
       }
       exposureState.asset = exposure.asset;
       updateActiveAssetLabel();
+      const trades = extractMexcTrades();
+      const avgPrice = computeMexcAveragePrice(
+        exposure.asset.toUpperCase(),
+        exposure.qty,
+        trades
+      );
       persistExposureSnapshot(
         EXCHANGE,
         exposure.asset,
         exposure.qty,
-        exposure.avgPrice
+        Number.isFinite(avgPrice) ? avgPrice : exposure.avgPrice
       ).then(() => updateExposurePanel(latestSettings));
     };
     poll();

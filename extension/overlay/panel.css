@@ -555,6 +555,90 @@
   border-left: 3px solid #6dffb3;
 }
 
+#arb-panel .orders-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 12px;
+}
+
+#arb-panel .orders-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+#arb-panel .orders-header {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+
+#arb-panel .orders-empty {
+  opacity: 0.7;
+  font-size: 11px;
+  text-align: center;
+  padding: 10px 8px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.05);
+}
+
+#arb-panel .orders-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+#arb-panel .orders-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+}
+
+#arb-panel .orders-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: space-between;
+  align-items: center;
+}
+
+#arb-panel .orders-time {
+  font-size: 10px;
+  opacity: 0.6;
+}
+
+#arb-panel .orders-side {
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+#arb-panel .orders-side.is-buy {
+  color: #6dffb3;
+}
+
+#arb-panel .orders-side.is-sell {
+  color: #ff6b6b;
+}
+
+#arb-panel .orders-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+
 #arb-panel .resizer {
   position: absolute;
   right: 6px;

@@ -11,6 +11,7 @@
   <div class="panel-tabs" role="tablist" aria-label="Navegação do painel">
     <button class="panel-tab is-active" type="button" data-tab-target="trading">TRADING</button>
     <button class="panel-tab" type="button" data-tab-target="log">LOG</button>
+    <button class="panel-tab" type="button" data-tab-target="orders">ORDENS</button>
   </div>
   <div class="panel-tab-contents">
     <div class="panel-tab-content is-active" data-tab-content="trading">
@@ -292,6 +293,20 @@
       <div class="log-panel">
         <div class="log-empty" id="arb-log-empty">Nenhum log registrado ainda.</div>
         <div class="log-list" id="arb-log-list" aria-live="polite"></div>
+      </div>
+    </div>
+    <div class="panel-tab-content" data-tab-content="orders">
+      <div class="orders-panel">
+        <div class="orders-section">
+          <div class="orders-header">GATE</div>
+          <div class="orders-empty" id="orders-empty-gate">Nenhuma ordem executada na Gate.</div>
+          <div class="orders-list" id="orders-list-gate" aria-live="polite"></div>
+        </div>
+        <div class="orders-section">
+          <div class="orders-header">MEXC</div>
+          <div class="orders-empty" id="orders-empty-mexc">Nenhuma ordem executada na MEXC.</div>
+          <div class="orders-list" id="orders-list-mexc" aria-live="polite"></div>
+        </div>
       </div>
     </div>
   </div>

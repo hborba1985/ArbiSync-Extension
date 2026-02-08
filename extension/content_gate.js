@@ -16,6 +16,9 @@ console.log('🧩 content_gate.js carregado');
   const LOG_MAX_ENTRIES = 200;
   const LOG_THROTTLE_MS = 2000;
   const lastLogByMessage = new Map();
+  const ordersState = { GATE: [], MEXC: [] };
+  const ORDERS_MAX_ENTRIES = 60;
+  const lastOrdersSignature = { GATE: '', MEXC: '' };
   const OVERLAY_ZOOM_STORAGE_KEY = 'arbsync_overlay_zoom';
   const domBookCache = {
     gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
@@ -115,6 +118,7 @@ console.log('🧩 content_gate.js carregado');
         setupTabs();
         registerTab();
         updateLogEmptyState();
+        renderAllOrders();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -162,6 +166,106 @@ console.log('🧩 content_gate.js carregado');
     const list = document.getElementById('arb-log-list');
     if (!emptyState || !list) return;
     emptyState.style.display = list.children.length ? 'none' : 'block';
+  }
+
+  function renderAllOrders() {
+    renderOrders('GATE');
+    renderOrders('MEXC');
+  }
+
+  function normalizeOrders(orders) {
+    return (orders || [])
+      .filter((order) => order && (order.asset || order.time || order.side))
+      .map((order) => ({
+        asset: order.asset || '--',
+        side: order.side || '--',
+        price: order.price,
+        qty: order.qty,
+        time: order.time || '--'
+      }))
+      .slice(0, ORDERS_MAX_ENTRIES);
+  }
+
+  function buildOrdersSignature(orders) {
+    return orders
+      .map(
+        (order) =>
+          `${order.asset}|${order.side}|${order.price ?? ''}|${order.qty ?? ''}|${order.time}`
+      )
+      .join('||');
+  }
+
+  function resolveOrderSideClass(side) {
+    const normalized = String(side || '').toLowerCase();
+    if (
+      normalized.includes('buy') ||
+      normalized.includes('compra') ||
+      normalized.includes('long')
+    ) {
+      return 'is-buy';
+    }
+    if (
+      normalized.includes('sell') ||
+      normalized.includes('venda') ||
+      normalized.includes('short')
+    ) {
+      return 'is-sell';
+    }
+    return '';
+  }
+
+  function renderOrders(exchange) {
+    const normalized = String(exchange || '').toLowerCase();
+    const list = document.getElementById(`orders-list-${normalized}`);
+    const empty = document.getElementById(`orders-empty-${normalized}`);
+    if (!list || !empty) return;
+    list.innerHTML = '';
+    const orders = ordersState[exchange] || [];
+    if (!orders.length) {
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    orders.forEach((order) => {
+      const item = document.createElement('div');
+      item.className = 'orders-item';
+      const sideClass = resolveOrderSideClass(order.side);
+      const priceLabel = Number.isFinite(order.price)
+        ? formatNumber(order.price, 6)
+        : '--';
+      const qtyLabel = Number.isFinite(order.qty)
+        ? formatNumber(order.qty, 4)
+        : '--';
+      item.innerHTML = `
+        <div class="orders-line">
+          <span class="orders-time">${order.time || '--'}</span>
+          <span class="orders-side ${sideClass}">${order.side || '--'}</span>
+        </div>
+        <div class="orders-meta">
+          <span>${order.asset || '--'}</span>
+          <span>Qtd: ${qtyLabel}</span>
+          <span>@ ${priceLabel}</span>
+        </div>
+      `.trim();
+      list.appendChild(item);
+    });
+  }
+
+  function syncOrders(exchange, orders, { broadcast = false } = {}) {
+    const normalizedOrders = normalizeOrders(orders);
+    const signature = buildOrdersSignature(normalizedOrders);
+    if (signature === lastOrdersSignature[exchange]) {
+      return;
+    }
+    lastOrdersSignature[exchange] = signature;
+    ordersState[exchange] = normalizedOrders;
+    renderOrders(exchange);
+    if (broadcast) {
+      sendRuntimeMessage({
+        type: 'EXECUTION_ORDERS',
+        payload: { exchange, orders: normalizedOrders }
+      });
+    }
   }
 
   function appendLogEntry(entry) {
@@ -1159,6 +1263,7 @@ console.log('🧩 content_gate.js carregado');
       exposureState.asset = normalizedAsset;
       updateActiveAssetLabel();
       const trades = extractGateTrades();
+      syncOrders(EXCHANGE, trades, { broadcast: true });
       const avgPrice = computeGateAveragePrice(
         normalizedAsset,
         exposure.qty,
@@ -2092,6 +2197,12 @@ console.log('🧩 content_gate.js carregado');
 
     if (msg.type === 'EXECUTION_LOG') {
       syncExecutionLog(msg.payload);
+    }
+
+    if (msg.type === 'EXECUTION_ORDERS') {
+      if (msg.payload?.exchange) {
+        syncOrders(msg.payload.exchange, msg.payload.orders || []);
+      }
     }
   });
 })();

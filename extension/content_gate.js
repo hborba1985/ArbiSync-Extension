@@ -18,6 +18,7 @@ console.log('🧩 content_gate.js carregado');
   const lastLogByMessage = new Map();
   const ordersState = { GATE: [], MEXC: [] };
   const ORDERS_MAX_ENTRIES = 60;
+  const ORDERS_STORAGE_KEY = 'arbsync_orders';
   const lastOrdersSignature = { GATE: '', MEXC: '' };
   const OVERLAY_ZOOM_STORAGE_KEY = 'arbsync_overlay_zoom';
   const domBookCache = {
@@ -119,6 +120,8 @@ console.log('🧩 content_gate.js carregado');
         registerTab();
         updateLogEmptyState();
         renderAllOrders();
+        setupOrdersStorageSync();
+        hydrateOrdersFromStorage();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -195,6 +198,39 @@ console.log('🧩 content_gate.js carregado');
       .join('||');
   }
 
+  async function hydrateOrdersFromStorage() {
+    const snapshot = (await safeStorageGet(ORDERS_STORAGE_KEY)) || {};
+    if (Array.isArray(snapshot.GATE?.orders)) {
+      syncOrders('GATE', snapshot.GATE.orders);
+    }
+    if (Array.isArray(snapshot.MEXC?.orders)) {
+      syncOrders('MEXC', snapshot.MEXC.orders);
+    }
+  }
+
+  async function persistOrdersToStorage(exchange, orders) {
+    const current = (await safeStorageGet(ORDERS_STORAGE_KEY)) || {};
+    current[exchange] = {
+      orders,
+      updatedAt: Date.now()
+    };
+    await safeStorageSet({ [ORDERS_STORAGE_KEY]: current });
+  }
+
+  function setupOrdersStorageSync() {
+    if (!chrome?.storage?.onChanged) return;
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'local' || !changes[ORDERS_STORAGE_KEY]) return;
+      const next = changes[ORDERS_STORAGE_KEY].newValue || {};
+      if (Array.isArray(next.GATE?.orders)) {
+        syncOrders('GATE', next.GATE.orders);
+      }
+      if (Array.isArray(next.MEXC?.orders)) {
+        syncOrders('MEXC', next.MEXC.orders);
+      }
+    });
+  }
+
   function resolveOrderSideClass(side) {
     const normalized = String(side || '').toLowerCase();
     if (
@@ -251,7 +287,7 @@ console.log('🧩 content_gate.js carregado');
     });
   }
 
-  function syncOrders(exchange, orders, { broadcast = false } = {}) {
+  function syncOrders(exchange, orders, { broadcast = false, persist = false } = {}) {
     const normalizedOrders = normalizeOrders(orders);
     const signature = buildOrdersSignature(normalizedOrders);
     if (signature === lastOrdersSignature[exchange]) {
@@ -265,6 +301,9 @@ console.log('🧩 content_gate.js carregado');
         type: 'EXECUTION_ORDERS',
         payload: { exchange, orders: normalizedOrders }
       });
+    }
+    if (persist) {
+      persistOrdersToStorage(exchange, normalizedOrders);
     }
   }
 
@@ -983,6 +1022,7 @@ console.log('🧩 content_gate.js carregado');
       const priceText = cells[2]?.textContent?.trim() || '';
       const qtyText = cells[3]?.textContent?.trim() || '';
       const timeText = cells[5]?.textContent?.trim() || '';
+      const normalizedTime = timeText.replace(/\s+/g, ' ').trim();
       const asset = market.split('/')[0]?.trim();
       const price = parseLocaleNumber(priceText);
       const qty = parseLocaleNumber(qtyText);
@@ -991,7 +1031,7 @@ console.log('🧩 content_gate.js carregado');
         side,
         price,
         qty,
-        time: timeText
+        time: normalizedTime
       };
     });
   }
@@ -1263,7 +1303,7 @@ console.log('🧩 content_gate.js carregado');
       exposureState.asset = normalizedAsset;
       updateActiveAssetLabel();
       const trades = extractGateTrades();
-      syncOrders(EXCHANGE, trades, { broadcast: true });
+      syncOrders(EXCHANGE, trades, { broadcast: true, persist: true });
       const avgPrice = computeGateAveragePrice(
         normalizedAsset,
         exposure.qty,

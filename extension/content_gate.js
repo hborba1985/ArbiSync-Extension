@@ -1024,7 +1024,8 @@ console.log('🧩 content_gate.js carregado');
       const timeText = cells[5]?.textContent?.trim() || '';
       const normalizedTime = timeText
         .replace(/\s+/g, ' ')
-        .replace(/(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})/, '$1 $2')
+        .replace(/(\d{4}-\d{2}-\d{2})(\d{1,2}:\d{2}:\d{2})/, '$1 $2')
+        .replace(/\b(\d):(\d{2}:\d{2})\b/g, '0$1:$2')
         .trim();
       const asset = market.split('/')[0]?.trim();
       const price = parseLocaleNumber(priceText);

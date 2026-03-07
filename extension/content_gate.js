@@ -1022,7 +1022,10 @@ console.log('🧩 content_gate.js carregado');
       const priceText = cells[2]?.textContent?.trim() || '';
       const qtyText = cells[3]?.textContent?.trim() || '';
       const timeText = cells[5]?.textContent?.trim() || '';
-      const normalizedTime = timeText.replace(/\s+/g, ' ').trim();
+      const normalizedTime = timeText
+        .replace(/\s+/g, ' ')
+        .replace(/(\d{4}-\d{2}-\d{2})(\d{2}:\d{2}:\d{2})/, '$1 $2')
+        .trim();
       const asset = market.split('/')[0]?.trim();
       const price = parseLocaleNumber(priceText);
       const qty = parseLocaleNumber(qtyText);

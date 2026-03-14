@@ -248,4 +248,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     broadcastToTargetTabs({ type: 'EXECUTION_LOG', payload: message.payload });
     sendResponse({ ok: true });
   }
+
+  if (message.type === 'EXECUTION_ORDERS') {
+    broadcastToTargetTabs({ type: 'EXECUTION_ORDERS', payload: message.payload });
+    sendResponse({ ok: true });
+  }
 });

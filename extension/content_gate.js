@@ -16,6 +16,10 @@ console.log('🧩 content_gate.js carregado');
   const LOG_MAX_ENTRIES = 200;
   const LOG_THROTTLE_MS = 2000;
   const lastLogByMessage = new Map();
+  const ordersState = { GATE: [], MEXC: [] };
+  const ORDERS_MAX_ENTRIES = 60;
+  const ORDERS_STORAGE_KEY = 'arbsync_orders';
+  const lastOrdersSignature = { GATE: '', MEXC: '' };
   const OVERLAY_ZOOM_STORAGE_KEY = 'arbsync_overlay_zoom';
   const domBookCache = {
     gate: { askPrice: null, askVolume: null, bidPrice: null, bidVolume: null },
@@ -115,6 +119,9 @@ console.log('🧩 content_gate.js carregado');
         setupTabs();
         registerTab();
         updateLogEmptyState();
+        renderAllOrders();
+        setupOrdersStorageSync();
+        hydrateOrdersFromStorage();
       })
       .catch((err) => {
         console.error('❌ Falha ao injetar overlay:', err);
@@ -162,6 +169,142 @@ console.log('🧩 content_gate.js carregado');
     const list = document.getElementById('arb-log-list');
     if (!emptyState || !list) return;
     emptyState.style.display = list.children.length ? 'none' : 'block';
+  }
+
+  function renderAllOrders() {
+    renderOrders('GATE');
+    renderOrders('MEXC');
+  }
+
+  function normalizeOrders(orders) {
+    return (orders || [])
+      .filter((order) => order && (order.asset || order.time || order.side))
+      .map((order) => ({
+        asset: order.asset || '--',
+        side: order.side || '--',
+        price: order.price,
+        qty: order.qty,
+        time: order.time || '--'
+      }))
+      .slice(0, ORDERS_MAX_ENTRIES);
+  }
+
+  function buildOrdersSignature(orders) {
+    return orders
+      .map(
+        (order) =>
+          `${order.asset}|${order.side}|${order.price ?? ''}|${order.qty ?? ''}|${order.time}`
+      )
+      .join('||');
+  }
+
+  async function hydrateOrdersFromStorage() {
+    const snapshot = (await safeStorageGet(ORDERS_STORAGE_KEY)) || {};
+    if (Array.isArray(snapshot.GATE?.orders)) {
+      syncOrders('GATE', snapshot.GATE.orders);
+    }
+    if (Array.isArray(snapshot.MEXC?.orders)) {
+      syncOrders('MEXC', snapshot.MEXC.orders);
+    }
+  }
+
+  async function persistOrdersToStorage(exchange, orders) {
+    const current = (await safeStorageGet(ORDERS_STORAGE_KEY)) || {};
+    current[exchange] = {
+      orders,
+      updatedAt: Date.now()
+    };
+    await safeStorageSet({ [ORDERS_STORAGE_KEY]: current });
+  }
+
+  function setupOrdersStorageSync() {
+    if (!chrome?.storage?.onChanged) return;
+    chrome.storage.onChanged.addListener((changes, areaName) => {
+      if (areaName !== 'local' || !changes[ORDERS_STORAGE_KEY]) return;
+      const next = changes[ORDERS_STORAGE_KEY].newValue || {};
+      if (Array.isArray(next.GATE?.orders)) {
+        syncOrders('GATE', next.GATE.orders);
+      }
+      if (Array.isArray(next.MEXC?.orders)) {
+        syncOrders('MEXC', next.MEXC.orders);
+      }
+    });
+  }
+
+  function resolveOrderSideClass(side) {
+    const normalized = String(side || '').toLowerCase();
+    if (
+      normalized.includes('buy') ||
+      normalized.includes('compra') ||
+      normalized.includes('long')
+    ) {
+      return 'is-buy';
+    }
+    if (
+      normalized.includes('sell') ||
+      normalized.includes('venda') ||
+      normalized.includes('short')
+    ) {
+      return 'is-sell';
+    }
+    return '';
+  }
+
+  function renderOrders(exchange) {
+    const normalized = String(exchange || '').toLowerCase();
+    const list = document.getElementById(`orders-list-${normalized}`);
+    const empty = document.getElementById(`orders-empty-${normalized}`);
+    if (!list || !empty) return;
+    list.innerHTML = '';
+    const orders = ordersState[exchange] || [];
+    if (!orders.length) {
+      empty.style.display = 'block';
+      return;
+    }
+    empty.style.display = 'none';
+    orders.forEach((order) => {
+      const item = document.createElement('div');
+      item.className = 'orders-item';
+      const sideClass = resolveOrderSideClass(order.side);
+      const priceLabel = Number.isFinite(order.price)
+        ? formatNumber(order.price, 6)
+        : '--';
+      const qtyLabel = Number.isFinite(order.qty)
+        ? formatNumber(order.qty, 4)
+        : '--';
+      item.innerHTML = `
+        <div class="orders-line">
+          <span class="orders-time">${order.time || '--'}</span>
+          <span class="orders-side ${sideClass}">${order.side || '--'}</span>
+        </div>
+        <div class="orders-meta">
+          <span>${order.asset || '--'}</span>
+          <span>Qtd: ${qtyLabel}</span>
+          <span>@ ${priceLabel}</span>
+        </div>
+      `.trim();
+      list.appendChild(item);
+    });
+  }
+
+  function syncOrders(exchange, orders, { broadcast = false, persist = false } = {}) {
+    const normalizedOrders = normalizeOrders(orders);
+    const signature = buildOrdersSignature(normalizedOrders);
+    if (signature === lastOrdersSignature[exchange]) {
+      return;
+    }
+    lastOrdersSignature[exchange] = signature;
+    ordersState[exchange] = normalizedOrders;
+    renderOrders(exchange);
+    if (broadcast) {
+      sendRuntimeMessage({
+        type: 'EXECUTION_ORDERS',
+        payload: { exchange, orders: normalizedOrders }
+      });
+    }
+    if (persist) {
+      persistOrdersToStorage(exchange, normalizedOrders);
+    }
   }
 
   function appendLogEntry(entry) {
@@ -879,6 +1022,11 @@ console.log('🧩 content_gate.js carregado');
       const priceText = cells[2]?.textContent?.trim() || '';
       const qtyText = cells[3]?.textContent?.trim() || '';
       const timeText = cells[5]?.textContent?.trim() || '';
+      const normalizedTime = timeText
+        .replace(/\s+/g, ' ')
+        .replace(/(\d{4}-\d{2}-\d{2})(\d{1,2}:\d{2}:\d{2})/, '$1 $2')
+        .replace(/\b(\d):(\d{2}:\d{2})\b/g, '0$1:$2')
+        .trim();
       const asset = market.split('/')[0]?.trim();
       const price = parseLocaleNumber(priceText);
       const qty = parseLocaleNumber(qtyText);
@@ -887,7 +1035,7 @@ console.log('🧩 content_gate.js carregado');
         side,
         price,
         qty,
-        time: timeText
+        time: normalizedTime
       };
     });
   }
@@ -1159,6 +1307,7 @@ console.log('🧩 content_gate.js carregado');
       exposureState.asset = normalizedAsset;
       updateActiveAssetLabel();
       const trades = extractGateTrades();
+      syncOrders(EXCHANGE, trades, { broadcast: true, persist: true });
       const avgPrice = computeGateAveragePrice(
         normalizedAsset,
         exposure.qty,
@@ -1174,13 +1323,13 @@ console.log('🧩 content_gate.js carregado');
   function startDomLiquidityPolling() {
     const selectors = {
       askPrice:
-        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__PriceItem-sc-802dfbfa-4.fACNWh, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.bBfmlX',
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(3) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__PriceItem-sc-802dfbfa-4.fACNWh, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__PriceItem-sc-802dfbfa-4.fACNWh, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.bBfmlX',
       askVolume:
-        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__AmountItem-sc-802dfbfa-6.IXbhq, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE',
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(3) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__AmountItem-sc-802dfbfa-6.IXbhq, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__AmountItem-sc-802dfbfa-6.IXbhq, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div.flex-1.relative > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE',
       bidPrice:
-        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__PriceItem-sc-802dfbfa-4.ecPgvl, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.khGgGv',
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(3) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__PriceItem-sc-802dfbfa-4.ecPgvl, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__PriceItem-sc-802dfbfa-4.ecPgvl, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__PriceItem-sc-1206421-4.khGgGv',
       bidVolume:
-        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-802dfbfa-6.IXbhq, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE'
+        '#market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(3) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-802dfbfa-6.IXbhq, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-802dfbfa-6.IXbhq, #market-list-calc-height > div.react-grid-layout.layout.trade-grid-layout > div:nth-child(4) > div > div.h-full.w-full.flex.flex-col.bg-bg-primary > div.flex-1.overflow-hidden > div > div.text-sm.font-medium.px-4.h-full.overflow-hidden > div > div:nth-child(3) > div > div > div:nth-child(1) > div.styled__AmountItem-sc-1206421-6.fZWbYE'
     };
 
     const fallbackSelectors = {
@@ -1448,10 +1597,14 @@ console.log('🧩 content_gate.js carregado');
         domBookCache.mexc.bidVolume ?? Number(data.mexcBidSize);
       const mexcAskQty =
         domBookCache.mexc.askVolume ?? Number(data.mexcAskSize);
-      const gateAskPx = Number(data.askGate);
-      const gateBidPx = Number(data.bidGate);
-      const mexcBidPx = Number(data.bidMexc);
-      const mexcAskPx = Number(data.askMexc);
+      const gateAskPx =
+        domBookCache.gate.askPrice ?? Number(data.askGate);
+      const gateBidPx =
+        domBookCache.gate.bidPrice ?? Number(data.bidGate);
+      const mexcBidPx =
+        domBookCache.mexc.bidPrice ?? Number(data.bidMexc);
+      const mexcAskPx =
+        domBookCache.mexc.askPrice ?? Number(data.askMexc);
       setLiquidityStatus(
         liquidityOpen,
         'ENTRADA',
@@ -2092,6 +2245,12 @@ console.log('🧩 content_gate.js carregado');
 
     if (msg.type === 'EXECUTION_LOG') {
       syncExecutionLog(msg.payload);
+    }
+
+    if (msg.type === 'EXECUTION_ORDERS') {
+      if (msg.payload?.exchange) {
+        syncOrders(msg.payload.exchange, msg.payload.orders || []);
+      }
     }
   });
 })();

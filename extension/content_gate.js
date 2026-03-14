@@ -1597,10 +1597,14 @@ console.log('🧩 content_gate.js carregado');
         domBookCache.mexc.bidVolume ?? Number(data.mexcBidSize);
       const mexcAskQty =
         domBookCache.mexc.askVolume ?? Number(data.mexcAskSize);
-      const gateAskPx = Number(data.askGate);
-      const gateBidPx = Number(data.bidGate);
-      const mexcBidPx = Number(data.bidMexc);
-      const mexcAskPx = Number(data.askMexc);
+      const gateAskPx =
+        domBookCache.gate.askPrice ?? Number(data.askGate);
+      const gateBidPx =
+        domBookCache.gate.bidPrice ?? Number(data.bidGate);
+      const mexcBidPx =
+        domBookCache.mexc.bidPrice ?? Number(data.bidMexc);
+      const mexcAskPx =
+        domBookCache.mexc.askPrice ?? Number(data.askMexc);
       setLiquidityStatus(
         liquidityOpen,
         'ENTRADA',
